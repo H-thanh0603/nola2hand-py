@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Cấu hình và dữ liệu cục bộ
+.env
+.env.*
+!.env.example
+.local/
+uploads/
+*.dump
+*.sql
+
+# Ghi chú làm việc, không commit
+PLAN.md
