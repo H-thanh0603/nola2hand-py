@@ -3,6 +3,10 @@
 Nguồn sự thật là database thật (bảng/cột do Prisma tạo), không phải chép tay
 từ schema.prisma. Chạy lại khi DB đổi:  python scripts/gen_models.py
 
+Kiểu cột đọc từ information_schema, không dùng SQLAlchemy inspector: inspector
+trả cột enum PostgreSQL về dạng VARCHAR(n), khiến `status == 'ACTIVE'` lỗi
+"operator does not exist".
+
 shortcut: model chỉ có cột, chưa có relationship(); thêm dần khi route cần join.
 """
 import re
@@ -11,79 +15,126 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import inspect  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
 from app.db import engine  # noqa: E402
 
 SKIP_TABLES = {"_prisma_migrations", "alembic_version"}
 
+COLUMNS_SQL = text(
+    """
+    SELECT table_name, column_name, data_type, udt_name, is_nullable,
+           character_maximum_length, numeric_precision, numeric_scale
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+    ORDER BY table_name, ordinal_position
+    """
+)
+PRIMARY_KEYS_SQL = text(
+    """
+    SELECT tc.table_name, kcu.column_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+    WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = 'public'
+    """
+)
+ENUM_VALUES_SQL = text(
+    """
+    SELECT t.typname, e.enumlabel
+    FROM pg_type t
+    JOIN pg_enum e ON e.enumtypid = t.oid
+    ORDER BY t.typname, e.enumsortorder
+    """
+)
 
-def to_expr(col):
-    """Kiểu cột trong DB -> biểu thức SQLAlchemy."""
-    t = str(col["type"])
-    name = t.split("(")[0].upper()
+IMPORT_CANDIDATES = [
+    "BigInteger",
+    "Boolean",
+    "Date",
+    "DateTime",
+    "Enum",
+    "Float",
+    "Integer",
+    "Numeric",
+    "String",
+    "Text",
+    "Uuid",
+]
 
-    if name in ("VARCHAR", "CHARACTER VARYING"):
-        m = re.search(r"\((\d+)\)", t)
-        return f"String({m.group(1)})" if m else "String"
-    if name in ("TEXT", "CHARACTER"):
-        return "Text"
-    if name in ("INTEGER", "INT"):
-        return "Integer"
-    if name == "BIGINT":
-        return "BigInteger"
-    if name == "SMALLINT":
-        return "SmallInteger"
-    if name == "BOOLEAN":
-        return "Boolean"
-    if name.startswith("TIMESTAMP"):
-        return "DateTime(timezone=True)" if "TIME ZONE" in t.upper() else "DateTime"
-    if name == "DATE":
-        return "Date"
-    if name == "NUMERIC":
-        m = re.search(r"\((\d+),\s*(\d+)\)", t)
-        return f"Numeric({m.group(1)}, {m.group(2)})" if m else "Numeric"
-    if name in ("DOUBLE PRECISION", "REAL"):
+SIMPLE_TYPES = {
+    "boolean": "Boolean",
+    "integer": "Integer",
+    "bigint": "BigInteger",
+    "smallint": "SmallInteger",
+    "text": "Text",
+    "date": "Date",
+    "uuid": "Uuid",
+    "jsonb": "JSONB",
+    "json": "JSON",
+    "bytea": "LargeBinary",
+}
+
+
+def to_expr(col: dict, enums: dict[str, list[str]]) -> str:
+    data_type = col["data_type"]
+    if data_type in SIMPLE_TYPES:
+        return SIMPLE_TYPES[data_type]
+    if data_type == "character varying":
+        length = col["character_maximum_length"]
+        return f"String({length})" if length else "String"
+    if data_type == "timestamp with time zone":
+        return "DateTime(timezone=True)"
+    if data_type == "timestamp without time zone":
+        return "DateTime"
+    if data_type == "numeric":
+        return f"Numeric({col['numeric_precision']}, {col['numeric_scale']})"
+    if data_type in ("double precision", "real"):
         return "Float"
-    if name == "UUID":
-        return "Uuid"
-    if name in ("JSONB", "JSON"):
-        return name
-    if name == "BYTEA":
-        return "LargeBinary"
-    if name.startswith("ENUM"):
-        return f'Enum(name="{col["type"].name}")'
-    raise SystemExit(f"Kiểu chưa hỗ trợ: {t} (cột {col['name']})")
+    if data_type == "USER-DEFINED":
+        # enum PostgreSQL. Phải kèm danh sách giá trị, nếu không SQLAlchemy
+        # không đọc nổi giá trị khi SELECT (LookupError).
+        name = col["udt_name"]
+        labels = ", ".join(f'"{label}"' for label in enums[name])
+        return f"Enum({labels}, name=\"{name}\")"
+    raise SystemExit(f"Kiểu chưa hỗ trợ: {data_type} (cột {col['table_name']}.{col['column_name']})")
 
 
 def main():
-    insp = inspect(engine)
-    tables = [t for t in insp.get_table_names(schema="public") if t not in SKIP_TABLES]
+    with engine.connect() as conn:
+        rows = [dict(r._mapping) for r in conn.execute(COLUMNS_SQL)]
+        pks: dict[str, set[str]] = {}
+        for row in conn.execute(PRIMARY_KEYS_SQL):
+            pks.setdefault(row.table_name, set()).add(row.column_name)
+        enums: dict[str, list[str]] = {}
+        for row in conn.execute(ENUM_VALUES_SQL):
+            enums.setdefault(row.typname, []).append(row.enumlabel)
+
+    tables: dict[str, list[dict]] = {}
+    for row in rows:
+        if row["table_name"] not in SKIP_TABLES:
+            tables.setdefault(row["table_name"], []).append(row)
+
     if len(tables) != 36:
         print(f"!! mong đợi 36 bảng, thấy {len(tables)}", file=sys.stderr)
 
     out: list[str] = []
-
-    for table in tables:
-        pk = insp.get_pk_constraint(table, schema="public")["constrained_columns"]
+    for table, cols in tables.items():
         out.append(f"class {table}(Base):")
         out.append(f'    __tablename__ = "{table}"')
         out.append("")
-        for col in insp.get_columns(table, schema="public"):
-            args = [to_expr(col), f'name="{col["name"]}"']
-            if col["name"] in pk:
+        for col in cols:
+            args = [to_expr(col, enums), f'name="{col["column_name"]}"']
+            if col["column_name"] in pks.get(table, set()):
                 args.append("primary_key=True")
-            if not col["nullable"]:
+            if col["is_nullable"] == "NO":
                 args.append("nullable=False")
-            out.append(f"    {col['name']}: Mapped[Any] = mapped_column({', '.join(args)})")
+            out.append(f"    {col['column_name']}: Mapped[Any] = mapped_column({', '.join(args)})")
         out.append("")
         out.append("")
 
     body = "\n".join(out)
-    generic = ["BigInteger", "Boolean", "Date", "DateTime", "Enum", "Float", "Integer", "Numeric", "String", "Text", "Uuid"]
-    used = [n for n in generic if re.search(rf"\b{n}\b", body)]
-    if not used:
-        raise SystemExit("Không nhận ra kiểu nào — kiểm tra lại output")
+    imported = [name for name in IMPORT_CANDIDATES if re.search(rf"\b{name}\b", body)]
     header = [
         '"""Model SQLAlchemy — sinh tự động, đừng sửa tay.',
         "",
@@ -92,7 +143,7 @@ def main():
         '"""',
         "from typing import Any",
         "",
-        "from sqlalchemy import " + ", ".join(used),
+        "from sqlalchemy import " + ", ".join(imported),
     ]
     if re.search(r"\bJSONB\b", body):
         header.append("from sqlalchemy.dialects.postgresql import JSONB")
