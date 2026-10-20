@@ -8,7 +8,10 @@ Bản viết lại của sàn thương mại điện tử đồ cũ **Nola2Hand*
 
 ## Trạng thái
 
-Đang ở giai đoạn dựng khung backend. Kế hoạch chi tiết theo từng phase nằm trong `PLAN.md` (file cục bộ, không commit).
+- Backend FastAPI: đủ **143/143 endpoint** của bản Express, giữ nguyên đường dẫn và dạng JSON.
+- Frontend React: đủ màn hình mua sắm, tài khoản, ví/đơn/ký quỹ, kênh người bán và quản trị.
+- Đã đối chiếu JSON hai backend trên cùng database (70/72 ca khớp; 2 ca còn lại là lỗi sẵn có của bản Node)
+  và chạy thử luồng tiền + quản trị qua giao diện React.
 
 ## Cấu trúc
 

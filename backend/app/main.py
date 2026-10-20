@@ -8,6 +8,8 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.exc import IntegrityError
 
 from .config import settings
@@ -40,6 +42,7 @@ from .routers import reviews as reviews_router
 from .routers import shops as shops_router
 from .routers import users as users_router
 from .routers import wallet as wallet_router
+from .routers.upload import UPLOAD_DIR
 from .services.reservations import expire_reservations
 
 logger = logging.getLogger("uvicorn.error")
@@ -118,6 +121,19 @@ def create_app() -> FastAPI:
     app.include_router(upload_router.router, prefix="/api/v1/upload")
     app.include_router(promos_router.router, prefix="/api/v1/promos")
     app.include_router(banners_router.router, prefix="/api/v1/banners")
+
+    # Ảnh sản phẩm công khai — như app.use('/uploads', express.static(...)) của bản Node.
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+    class PublicImageHeaders(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            response = await call_next(request)
+            if request.url.path.startswith("/uploads/"):
+                response.headers["X-Content-Type-Options"] = "nosniff"
+            return response
+
+    app.add_middleware(PublicImageHeaders)
 
     async def not_found_body() -> JSONResponse:
         # Giống hệt thông báo của bản Node (src/app.js:75)
