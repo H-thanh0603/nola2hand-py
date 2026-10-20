@@ -12,17 +12,22 @@ from .db import get_db
 from .errors import ApiError, api_error_handler, integrity_handler, unhandled_handler, validation_handler
 from .routers import admin_users as admin_users_router
 from .routers import auth as auth_router
+from .routers import assistant as assistant_router
 from .routers import cart as cart_router
+from .routers import chat as chat_router
 from .routers import categories as categories_router
 from .routers import disputes as disputes_router
 from .routers import escrow as escrow_router
 from .routers import finance as finance_router
 from .routers import listings as listings_router
+from .routers import notifications as notifications_router
 from .routers import offers as offers_router
 from .routers import orders as orders_router
 from .routers import posts as posts_router
 from .routers import reports as reports_router
 from .routers import returns as returns_router
+from .routers import reviews as reviews_router
+from .routers import saved_searches as saved_searches_router
 from .routers import reviews as reviews_router
 from .routers import shops as shops_router
 from .routers import users as users_router
@@ -69,6 +74,10 @@ def create_app() -> FastAPI:
     app.include_router(disputes_router.router, prefix="/api/v1/disputes")
     app.include_router(reports_router.router, prefix="/api/v1/reports")
     app.include_router(reviews_router.router, prefix="/api/v1/reviews")
+    app.include_router(chat_router.router, prefix="/api/v1/chat")
+    app.include_router(notifications_router.router, prefix="/api/v1/notifications")
+    app.include_router(saved_searches_router.router, prefix="/api/v1/saved-searches")
+    app.include_router(assistant_router.router, prefix="/api/v1/assistant")
 
     @app.exception_handler(404)
     async def not_found(_request: Request, _exc: Exception) -> JSONResponse:

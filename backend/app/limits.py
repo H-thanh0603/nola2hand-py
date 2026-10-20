@@ -13,9 +13,15 @@ from .errors import ApiError
 
 
 class MemoryLimiter:
-    def __init__(self, max_calls: int, window_ms: int):
+    def __init__(
+        self,
+        max_calls: int,
+        window_ms: int,
+        message: str = "Bạn thao tác quá nhiều, hãy thử lại sau 1 giờ",
+    ):
         self.max_calls = max_calls
         self.window_ms = window_ms
+        self.message = message
         self._hits: dict[str, tuple[int, int]] = {}  # key -> (window_start_ms, count)
         self._lock = threading.Lock()
 
@@ -38,16 +44,21 @@ class MemoryLimiter:
             retry_after = ((start + self.window_ms - now_ms) // 1000) + 1
             raise ApiError(
                 429,
-                "Bạn thao tác quá nhiều, hãy thử lại sau 1 giờ",
+                self.message,
                 headers={"Retry-After": str(retry_after)},
             )
 
 
-def mail_limit(max_calls: int) -> Callable[[Request], None]:
-    """Giống mailLimit(max) trong src/routes/auth.js: khung 1 giờ, đếm theo IP."""
-    limiter = MemoryLimiter(max_calls, 60 * 60 * 1000)
+def ip_limit(max_calls: int, window_ms: int, message: str) -> Callable[[Request], None]:
+    """Giống rateLimit({windowMs, max}) của express-rate-limit: đếm theo IP."""
+    limiter = MemoryLimiter(max_calls, window_ms, message)
 
     def dependency(request: Request) -> None:
         limiter.check(request.client.host if request.client else "unknown")
 
     return dependency
+
+
+def mail_limit(max_calls: int) -> Callable[[Request], None]:
+    """Giống mailLimit(max) trong src/routes/auth.js: khung 1 giờ, đếm theo IP."""
+    return ip_limit(max_calls, 60 * 60 * 1000, "Bạn thao tác quá nhiều, hãy thử lại sau 1 giờ")

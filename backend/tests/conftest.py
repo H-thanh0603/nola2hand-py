@@ -22,6 +22,7 @@ from app.models import (
     FeeConfig,
     Listing,
     ListingImage,
+    Message,
     Notification,
     Order,
     OrderTimeline,
@@ -38,6 +39,7 @@ from app.models import (
     SavedSearchMatch,
     SellerProfile,
     User,
+    UserBlock,
     UserRole,
     Wallet,
     WalletTransaction,
@@ -49,9 +51,11 @@ MAIL_DIR = Path(__file__).resolve().parents[1] / ".local" / "mail"
 
 @pytest.fixture
 def client():
+    from app.routers.assistant import assistant_limiter
     from app.routers.auth import auth_limiter
 
     auth_limiter.clear()  # giới hạn 100 lượt/15 phút của bản Node không làm hỏng test
+    assistant_limiter.clear()
     return TestClient(create_app(), raise_server_exceptions=False)
 
 
@@ -180,6 +184,16 @@ def make_user(client):
         db.execute(
             delete(Notification).where(
                 Notification.userId.in_(created) | (Notification.id > notif_before)
+            )
+        )
+        db.execute(
+            delete(Message).where(
+                Message.senderId.in_(created) | Message.receiverId.in_(created)
+            )
+        )
+        db.execute(
+            delete(UserBlock).where(
+                UserBlock.blockerId.in_(created) | UserBlock.blockedId.in_(created)
             )
         )
         db.execute(delete(Address).where(Address.userId.in_(created)))
