@@ -1,5 +1,6 @@
 """Kiểm tra dữ liệu vào — giữ nguyên regex và thông báo của src/validators.js."""
 import re
+from urllib.parse import urlparse
 
 # Regex email lấy đúng theo zod v3 (src/validators.js dùng z.string().email()).
 EMAIL_RE = re.compile(r"^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$")
@@ -28,4 +29,15 @@ def password(value: str, min_length: int, what: str = "Mật khẩu") -> str:
         raise ValueError(f"{what} tối đa 72 ký tự")
     if not PASSWORD_RE.match(value):
         raise ValueError(f"{what} cần có cả chữ và số")
+    return value
+
+
+def http_url(value: str, what: str = "URL") -> str:
+    """z.string().url() + chỉ nhận http(s) — hai thông báo lỗi khác nhau như bản Node."""
+    value = value.strip()
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"{what} chưa đúng")
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("Chỉ nhận URL HTTP/HTTPS")
     return value

@@ -3,7 +3,7 @@ import hashlib
 import secrets
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, field_validator
@@ -14,7 +14,7 @@ from ..config import settings
 from ..db import get_db
 from ..deps import CurrentUser, current_user
 from ..errors import ApiError
-from ..limits import mail_limit
+from ..limits import MemoryLimiter, mail_limit
 from ..models import Role, SellerProfile, User, UserRole, Wallet
 from ..security import create_access_token, hash_password, verify_password
 from ..serialize import to_dict
@@ -22,7 +22,15 @@ from ..services.mail import email_mode, send_account_email
 from ..utils import now
 from ..validators import clean_email, password, phone_vn
 
-router = APIRouter()
+# Bản Node đặt rateLimit 100 lượt / 15 phút cho cả nhóm /api/v1/auth (src/app.js:38).
+auth_limiter = MemoryLimiter(100, 15 * 60 * 1000)
+
+
+def auth_rate_limit(request: Request) -> None:
+    auth_limiter.check(request.client.host if request.client else "unknown")
+
+
+router = APIRouter(dependencies=[Depends(auth_rate_limit)])
 
 OTP_TTL = timedelta(minutes=10)
 OTP_MAX_ATTEMPTS = 5

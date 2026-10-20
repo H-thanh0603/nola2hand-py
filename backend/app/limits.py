@@ -19,6 +19,10 @@ class MemoryLimiter:
         self._hits: dict[str, tuple[int, int]] = {}  # key -> (window_start_ms, count)
         self._lock = threading.Lock()
 
+    def clear(self) -> None:
+        with self._lock:
+            self._hits.clear()
+
     def check(self, key: str) -> None:
         now_ms = int(time.time() * 1000)
         start = (now_ms // self.window_ms) * self.window_ms

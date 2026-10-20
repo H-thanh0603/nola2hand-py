@@ -12,6 +12,10 @@ from .db import get_db
 from .errors import ApiError, api_error_handler, integrity_handler, unhandled_handler, validation_handler
 from .routers import admin_users as admin_users_router
 from .routers import auth as auth_router
+from .routers import categories as categories_router
+from .routers import listings as listings_router
+from .routers import posts as posts_router
+from .routers import shops as shops_router
 from .routers import users as users_router
 
 
@@ -41,6 +45,10 @@ def create_app() -> FastAPI:
     app.include_router(auth_router.router, prefix="/api/v1/auth")
     app.include_router(users_router.router, prefix="/api/v1/users")
     app.include_router(admin_users_router.router, prefix="/api/v1/admin/users")
+    app.include_router(categories_router.router, prefix="/api/v1/categories")
+    app.include_router(listings_router.router, prefix="/api/v1/listings")
+    app.include_router(posts_router.router, prefix="/api/v1/posts")
+    app.include_router(shops_router.router, prefix="/api/v1/shops")
 
     @app.exception_handler(404)
     async def not_found(_request: Request, _exc: Exception) -> JSONResponse:
