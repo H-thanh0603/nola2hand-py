@@ -23,7 +23,7 @@ SKIP_TABLES = {"_prisma_migrations", "alembic_version"}
 
 COLUMNS_SQL = text(
     """
-    SELECT table_name, column_name, data_type, udt_name, is_nullable,
+    SELECT table_name, column_name, data_type, udt_name, is_nullable, column_default,
            character_maximum_length, numeric_precision, numeric_scale
     FROM information_schema.columns
     WHERE table_schema = 'public'
@@ -52,7 +52,6 @@ IMPORT_CANDIDATES = [
     "BigInteger",
     "Boolean",
     "Date",
-    "DateTime",
     "Enum",
     "Float",
     "Integer",
@@ -84,9 +83,9 @@ def to_expr(col: dict, enums: dict[str, list[str]]) -> str:
         length = col["character_maximum_length"]
         return f"String({length})" if length else "String"
     if data_type == "timestamp with time zone":
-        return "DateTime(timezone=True)"
+        return "JsDateTime(timezone=True)"
     if data_type == "timestamp without time zone":
-        return "DateTime"
+        return "JsDateTime"
     if data_type == "numeric":
         return f"Numeric({col['numeric_precision']}, {col['numeric_scale']})"
     if data_type in ("double precision", "real"):
@@ -129,12 +128,20 @@ def main():
                 args.append("primary_key=True")
             if col["is_nullable"] == "NO":
                 args.append("nullable=False")
+            default = col["column_default"]
+            # serial (nextval) để DB tự sinh, không cần khai báo. Còn lại phải khai
+            # báo server_default, nếu không SQLAlchemy chèn NULL và vi phạm NOT NULL
+            # thay vì để DB dùng default (Prisma dựa vào default này).
+            if default and "nextval" not in default:
+                args.append(f"server_default=text({default!r})")
             out.append(f"    {col['column_name']}: Mapped[Any] = mapped_column({', '.join(args)})")
         out.append("")
         out.append("")
 
     body = "\n".join(out)
     imported = [name for name in IMPORT_CANDIDATES if re.search(rf"\b{name}\b", body)]
+    if "text(" in body:
+        imported.append("text")
     header = [
         '"""Model SQLAlchemy — sinh tự động, đừng sửa tay.',
         "",
@@ -147,7 +154,12 @@ def main():
     ]
     if re.search(r"\bJSONB\b", body):
         header.append("from sqlalchemy.dialects.postgresql import JSONB")
-    header += ["from sqlalchemy.orm import Mapped, mapped_column", "", "from .db import Base", "", "", body, ""]
+    header.append("from sqlalchemy.orm import Mapped, mapped_column")
+    header.append("")
+    header.append("from .db import Base")
+    if re.search(r"\bJsDateTime\b", body):
+        header.append("from .types import JsDateTime")
+    header += ["", "", body, ""]
 
     Path("app/models.py").write_text("\n".join(header))
     print(f"Đã sinh app/models.py với {len(tables)} model")

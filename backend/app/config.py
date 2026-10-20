@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     node_env: str = "development"
     client_url: str = "http://localhost:5173"
     app_url: str = "http://localhost:4000"
+    resend_api_key: str = ""
+    mail_from: str = ""
+    google_client_id: str = ""
+    openai_api_key: str = ""
+    openai_model: str = ""
+    ai_review_analysis: bool = False
 
     @field_validator("database_url")
     @classmethod

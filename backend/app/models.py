@@ -5,11 +5,12 @@ Nguồn: database PostgreSQL của bản Node (xem PLAN.md).
 """
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, Integer, Text
+from sqlalchemy import Boolean, Enum, Float, Integer, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
+from .types import JsDateTime
 
 
 class ActionQuota(Base):
@@ -17,8 +18,8 @@ class ActionQuota(Base):
 
     userId: Mapped[Any] = mapped_column(Integer, name="userId", primary_key=True, nullable=False)
     action: Mapped[Any] = mapped_column(Text, name="action", primary_key=True, nullable=False)
-    windowStart: Mapped[Any] = mapped_column(DateTime, name="windowStart", primary_key=True, nullable=False)
-    count: Mapped[Any] = mapped_column(Integer, name="count", nullable=False)
+    windowStart: Mapped[Any] = mapped_column(JsDateTime, name="windowStart", primary_key=True, nullable=False)
+    count: Mapped[Any] = mapped_column(Integer, name="count", nullable=False, server_default=text('0'))
 
 
 class Address(Base):
@@ -33,7 +34,7 @@ class Address(Base):
     ward: Mapped[Any] = mapped_column(Text, name="ward")
     district: Mapped[Any] = mapped_column(Text, name="district")
     city: Mapped[Any] = mapped_column(Text, name="city", nullable=False)
-    isDefault: Mapped[Any] = mapped_column(Boolean, name="isDefault", nullable=False)
+    isDefault: Mapped[Any] = mapped_column(Boolean, name="isDefault", nullable=False, server_default=text('false'))
 
 
 class AuditLog(Base):
@@ -44,7 +45,7 @@ class AuditLog(Base):
     action: Mapped[Any] = mapped_column(Text, name="action", nullable=False)
     target: Mapped[Any] = mapped_column(Text, name="target")
     detail: Mapped[Any] = mapped_column(JSONB, name="detail")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class BankAccount(Base):
@@ -55,7 +56,7 @@ class BankAccount(Base):
     bankName: Mapped[Any] = mapped_column(Text, name="bankName", nullable=False)
     accountNumber: Mapped[Any] = mapped_column(Text, name="accountNumber", nullable=False)
     accountName: Mapped[Any] = mapped_column(Text, name="accountName", nullable=False)
-    isDefault: Mapped[Any] = mapped_column(Boolean, name="isDefault", nullable=False)
+    isDefault: Mapped[Any] = mapped_column(Boolean, name="isDefault", nullable=False, server_default=text('false'))
 
 
 class Banner(Base):
@@ -66,11 +67,11 @@ class Banner(Base):
     imageUrl: Mapped[Any] = mapped_column(Text, name="imageUrl", nullable=False)
     linkUrl: Mapped[Any] = mapped_column(Text, name="linkUrl")
     position: Mapped[Any] = mapped_column(Enum("HOME_HERO", "HOME_SECONDARY", "CATEGORY", name="BannerPosition"), name="position", nullable=False)
-    startsAt: Mapped[Any] = mapped_column(DateTime, name="startsAt", nullable=False)
-    endsAt: Mapped[Any] = mapped_column(DateTime, name="endsAt", nullable=False)
-    status: Mapped[Any] = mapped_column(Enum("DRAFT", "ACTIVE", "PAUSED", "ENDED", name="BannerStatus"), name="status", nullable=False)
-    views: Mapped[Any] = mapped_column(Integer, name="views", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    startsAt: Mapped[Any] = mapped_column(JsDateTime, name="startsAt", nullable=False)
+    endsAt: Mapped[Any] = mapped_column(JsDateTime, name="endsAt", nullable=False)
+    status: Mapped[Any] = mapped_column(Enum("DRAFT", "ACTIVE", "PAUSED", "ENDED", name="BannerStatus"), name="status", nullable=False, server_default=text('\'DRAFT\'::"BannerStatus"'))
+    views: Mapped[Any] = mapped_column(Integer, name="views", nullable=False, server_default=text('0'))
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class CartItem(Base):
@@ -78,7 +79,7 @@ class CartItem(Base):
 
     userId: Mapped[Any] = mapped_column(Integer, name="userId", primary_key=True, nullable=False)
     listingId: Mapped[Any] = mapped_column(Integer, name="listingId", primary_key=True, nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class Category(Base):
@@ -103,10 +104,10 @@ class Dispute(Base):
     reason: Mapped[Any] = mapped_column(Text, name="reason", nullable=False)
     description: Mapped[Any] = mapped_column(Text, name="description", nullable=False)
     amount: Mapped[Any] = mapped_column(Integer, name="amount", nullable=False)
-    status: Mapped[Any] = mapped_column(Enum("OPEN", "REVIEWING", "REFUNDED", "REJECTED", "CLOSED", name="DisputeStatus"), name="status", nullable=False)
+    status: Mapped[Any] = mapped_column(Enum("OPEN", "REVIEWING", "REFUNDED", "REJECTED", "CLOSED", name="DisputeStatus"), name="status", nullable=False, server_default=text('\'OPEN\'::"DisputeStatus"'))
     resolution: Mapped[Any] = mapped_column(Text, name="resolution")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
 
 
 class DisputeEvidence(Base):
@@ -124,9 +125,9 @@ class Escrow(Base):
     id: Mapped[Any] = mapped_column(Integer, name="id", primary_key=True, nullable=False)
     orderId: Mapped[Any] = mapped_column(Integer, name="orderId", nullable=False)
     amount: Mapped[Any] = mapped_column(Integer, name="amount", nullable=False)
-    status: Mapped[Any] = mapped_column(Enum("HELD", "RELEASED", "REFUNDED", "CANCELLED", name="EscrowStatus"), name="status", nullable=False)
-    heldAt: Mapped[Any] = mapped_column(DateTime, name="heldAt", nullable=False)
-    releasedAt: Mapped[Any] = mapped_column(DateTime, name="releasedAt")
+    status: Mapped[Any] = mapped_column(Enum("HELD", "RELEASED", "REFUNDED", "CANCELLED", name="EscrowStatus"), name="status", nullable=False, server_default=text('\'HELD\'::"EscrowStatus"'))
+    heldAt: Mapped[Any] = mapped_column(JsDateTime, name="heldAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    releasedAt: Mapped[Any] = mapped_column(JsDateTime, name="releasedAt")
 
 
 class Favorite(Base):
@@ -134,7 +135,7 @@ class Favorite(Base):
 
     userId: Mapped[Any] = mapped_column(Integer, name="userId", primary_key=True, nullable=False)
     listingId: Mapped[Any] = mapped_column(Integer, name="listingId", primary_key=True, nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class FeeConfig(Base):
@@ -147,8 +148,8 @@ class FeeConfig(Base):
     amount: Mapped[Any] = mapped_column(Integer, name="amount")
     minAmount: Mapped[Any] = mapped_column(Integer, name="minAmount")
     condition: Mapped[Any] = mapped_column(Text, name="condition")
-    isActive: Mapped[Any] = mapped_column(Boolean, name="isActive", nullable=False)
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
+    isActive: Mapped[Any] = mapped_column(Boolean, name="isActive", nullable=False, server_default=text('true'))
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
 
 
 class Listing(Base):
@@ -161,18 +162,18 @@ class Listing(Base):
     description: Mapped[Any] = mapped_column(Text, name="description", nullable=False)
     price: Mapped[Any] = mapped_column(Integer, name="price", nullable=False)
     originalPrice: Mapped[Any] = mapped_column(Integer, name="originalPrice")
-    condition: Mapped[Any] = mapped_column(Enum("NEW", "LIKE_NEW", "USED_GOOD", "USED_FAIR", "FOR_PARTS", name="ListingCondition"), name="condition", nullable=False)
-    isFree: Mapped[Any] = mapped_column(Boolean, name="isFree", nullable=False)
-    isVerified: Mapped[Any] = mapped_column(Boolean, name="isVerified", nullable=False)
-    status: Mapped[Any] = mapped_column(Enum("DRAFT", "PENDING_REVIEW", "ACTIVE", "HIDDEN", "SOLD_OUT", "REJECTED", "DELETED", "RESERVED", name="ListingStatus"), name="status", nullable=False)
+    condition: Mapped[Any] = mapped_column(Enum("NEW", "LIKE_NEW", "USED_GOOD", "USED_FAIR", "FOR_PARTS", name="ListingCondition"), name="condition", nullable=False, server_default=text('\'USED_GOOD\'::"ListingCondition"'))
+    isFree: Mapped[Any] = mapped_column(Boolean, name="isFree", nullable=False, server_default=text('false'))
+    isVerified: Mapped[Any] = mapped_column(Boolean, name="isVerified", nullable=False, server_default=text('false'))
+    status: Mapped[Any] = mapped_column(Enum("DRAFT", "PENDING_REVIEW", "ACTIVE", "HIDDEN", "SOLD_OUT", "REJECTED", "DELETED", "RESERVED", name="ListingStatus"), name="status", nullable=False, server_default=text('\'PENDING_REVIEW\'::"ListingStatus"'))
     rejectReason: Mapped[Any] = mapped_column(Text, name="rejectReason")
-    views: Mapped[Any] = mapped_column(Integer, name="views", nullable=False)
-    boostedUntil: Mapped[Any] = mapped_column(DateTime, name="boostedUntil")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
-    city: Mapped[Any] = mapped_column(Text, name="city", nullable=False)
-    deliveryMethod: Mapped[Any] = mapped_column(Text, name="deliveryMethod", nullable=False)
-    specifications: Mapped[Any] = mapped_column(JSONB, name="specifications", nullable=False)
+    views: Mapped[Any] = mapped_column(Integer, name="views", nullable=False, server_default=text('0'))
+    boostedUntil: Mapped[Any] = mapped_column(JsDateTime, name="boostedUntil")
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
+    city: Mapped[Any] = mapped_column(Text, name="city", nullable=False, server_default=text("''::text"))
+    deliveryMethod: Mapped[Any] = mapped_column(Text, name="deliveryMethod", nullable=False, server_default=text("'ANY'::text"))
+    specifications: Mapped[Any] = mapped_column(JSONB, name="specifications", nullable=False, server_default=text("'{}'::jsonb"))
 
 
 class ListingImage(Base):
@@ -181,7 +182,7 @@ class ListingImage(Base):
     id: Mapped[Any] = mapped_column(Integer, name="id", primary_key=True, nullable=False)
     listingId: Mapped[Any] = mapped_column(Integer, name="listingId", nullable=False)
     url: Mapped[Any] = mapped_column(Text, name="url", nullable=False)
-    sortOrder: Mapped[Any] = mapped_column(Integer, name="sortOrder", nullable=False)
+    sortOrder: Mapped[Any] = mapped_column(Integer, name="sortOrder", nullable=False, server_default=text('0'))
 
 
 class Message(Base):
@@ -193,8 +194,8 @@ class Message(Base):
     listingId: Mapped[Any] = mapped_column(Integer, name="listingId")
     orderId: Mapped[Any] = mapped_column(Integer, name="orderId")
     body: Mapped[Any] = mapped_column(Text, name="body", nullable=False)
-    isRead: Mapped[Any] = mapped_column(Boolean, name="isRead", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    isRead: Mapped[Any] = mapped_column(Boolean, name="isRead", nullable=False, server_default=text('false'))
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class Notification(Base):
@@ -206,8 +207,8 @@ class Notification(Base):
     title: Mapped[Any] = mapped_column(Text, name="title", nullable=False)
     body: Mapped[Any] = mapped_column(Text, name="body")
     data: Mapped[Any] = mapped_column(JSONB, name="data")
-    isRead: Mapped[Any] = mapped_column(Boolean, name="isRead", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    isRead: Mapped[Any] = mapped_column(Boolean, name="isRead", nullable=False, server_default=text('false'))
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class Order(Base):
@@ -219,25 +220,25 @@ class Order(Base):
     sellerId: Mapped[Any] = mapped_column(Integer, name="sellerId", nullable=False)
     listingId: Mapped[Any] = mapped_column(Integer, name="listingId", nullable=False)
     priceAgreed: Mapped[Any] = mapped_column(Integer, name="priceAgreed", nullable=False)
-    depositAmount: Mapped[Any] = mapped_column(Integer, name="depositAmount", nullable=False)
+    depositAmount: Mapped[Any] = mapped_column(Integer, name="depositAmount", nullable=False, server_default=text('0'))
     remainingAmount: Mapped[Any] = mapped_column(Integer, name="remainingAmount", nullable=False)
-    shippingFee: Mapped[Any] = mapped_column(Integer, name="shippingFee", nullable=False)
-    discountAmount: Mapped[Any] = mapped_column(Integer, name="discountAmount", nullable=False)
+    shippingFee: Mapped[Any] = mapped_column(Integer, name="shippingFee", nullable=False, server_default=text('0'))
+    discountAmount: Mapped[Any] = mapped_column(Integer, name="discountAmount", nullable=False, server_default=text('0'))
     totalAmount: Mapped[Any] = mapped_column(Integer, name="totalAmount", nullable=False)
-    platformFee: Mapped[Any] = mapped_column(Integer, name="platformFee", nullable=False)
+    platformFee: Mapped[Any] = mapped_column(Integer, name="platformFee", nullable=False, server_default=text('0'))
     paymentMethod: Mapped[Any] = mapped_column(Text, name="paymentMethod")
-    status: Mapped[Any] = mapped_column(Enum("PENDING_DEPOSIT", "DEPOSITED", "CONFIRMED", "SHIPPING", "DELIVERED", "COMPLETED", "CANCELLED", "DISPUTED", "REFUNDED", name="OrderStatus"), name="status", nullable=False)
+    status: Mapped[Any] = mapped_column(Enum("PENDING_DEPOSIT", "DEPOSITED", "CONFIRMED", "SHIPPING", "DELIVERED", "COMPLETED", "CANCELLED", "DISPUTED", "REFUNDED", name="OrderStatus"), name="status", nullable=False, server_default=text('\'PENDING_DEPOSIT\'::"OrderStatus"'))
     shipName: Mapped[Any] = mapped_column(Text, name="shipName")
     shipPhone: Mapped[Any] = mapped_column(Text, name="shipPhone")
     shipAddress: Mapped[Any] = mapped_column(Text, name="shipAddress")
     note: Mapped[Any] = mapped_column(Text, name="note")
     trackingCode: Mapped[Any] = mapped_column(Text, name="trackingCode")
     cancelReason: Mapped[Any] = mapped_column(Text, name="cancelReason")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
-    reservationExpiresAt: Mapped[Any] = mapped_column(DateTime, name="reservationExpiresAt")
-    settlementMethod: Mapped[Any] = mapped_column(Text, name="settlementMethod", nullable=False)
-    codCollectedAt: Mapped[Any] = mapped_column(DateTime, name="codCollectedAt")
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
+    reservationExpiresAt: Mapped[Any] = mapped_column(JsDateTime, name="reservationExpiresAt")
+    settlementMethod: Mapped[Any] = mapped_column(Text, name="settlementMethod", nullable=False, server_default=text("'COD'::text"))
+    codCollectedAt: Mapped[Any] = mapped_column(JsDateTime, name="codCollectedAt")
 
 
 class OrderTimeline(Base):
@@ -247,7 +248,7 @@ class OrderTimeline(Base):
     orderId: Mapped[Any] = mapped_column(Integer, name="orderId", nullable=False)
     status: Mapped[Any] = mapped_column(Text, name="status", nullable=False)
     note: Mapped[Any] = mapped_column(Text, name="note")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class Post(Base):
@@ -260,10 +261,10 @@ class Post(Base):
     excerpt: Mapped[Any] = mapped_column(Text, name="excerpt")
     coverUrl: Mapped[Any] = mapped_column(Text, name="coverUrl")
     content: Mapped[Any] = mapped_column(Text, name="content", nullable=False)
-    status: Mapped[Any] = mapped_column(Enum("DRAFT", "PUBLISHED", "HIDDEN", name="PostStatus"), name="status", nullable=False)
-    views: Mapped[Any] = mapped_column(Integer, name="views", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
+    status: Mapped[Any] = mapped_column(Enum("DRAFT", "PUBLISHED", "HIDDEN", name="PostStatus"), name="status", nullable=False, server_default=text('\'DRAFT\'::"PostStatus"'))
+    views: Mapped[Any] = mapped_column(Integer, name="views", nullable=False, server_default=text('0'))
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
 
 
 class PriceHistory(Base):
@@ -272,7 +273,7 @@ class PriceHistory(Base):
     id: Mapped[Any] = mapped_column(Integer, name="id", primary_key=True, nullable=False)
     listingId: Mapped[Any] = mapped_column(Integer, name="listingId", nullable=False)
     price: Mapped[Any] = mapped_column(Integer, name="price", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class PriceOffer(Base):
@@ -284,9 +285,9 @@ class PriceOffer(Base):
     offeredPrice: Mapped[Any] = mapped_column(Integer, name="offeredPrice", nullable=False)
     message: Mapped[Any] = mapped_column(Text, name="message")
     shipMethod: Mapped[Any] = mapped_column(Text, name="shipMethod")
-    status: Mapped[Any] = mapped_column(Enum("PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED", name="OfferStatus"), name="status", nullable=False)
-    expiresAt: Mapped[Any] = mapped_column(DateTime, name="expiresAt", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    status: Mapped[Any] = mapped_column(Enum("PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED", name="OfferStatus"), name="status", nullable=False, server_default=text('\'PENDING\'::"OfferStatus"'))
+    expiresAt: Mapped[Any] = mapped_column(JsDateTime, name="expiresAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class Promo(Base):
@@ -296,16 +297,16 @@ class Promo(Base):
     name: Mapped[Any] = mapped_column(Text, name="name", nullable=False)
     type: Mapped[Any] = mapped_column(Enum("PLATFORM_FEE_DISCOUNT", "FREESHIP", "VOUCHER", "BOOST", name="PromoType"), name="type", nullable=False)
     code: Mapped[Any] = mapped_column(Text, name="code")
-    discountType: Mapped[Any] = mapped_column(Text, name="discountType", nullable=False)
+    discountType: Mapped[Any] = mapped_column(Text, name="discountType", nullable=False, server_default=text("'PERCENT'::text"))
     discountValue: Mapped[Any] = mapped_column(Integer, name="discountValue", nullable=False)
     maxDiscount: Mapped[Any] = mapped_column(Integer, name="maxDiscount")
-    minOrder: Mapped[Any] = mapped_column(Integer, name="minOrder", nullable=False)
+    minOrder: Mapped[Any] = mapped_column(Integer, name="minOrder", nullable=False, server_default=text('0'))
     usageLimit: Mapped[Any] = mapped_column(Integer, name="usageLimit")
-    usedCount: Mapped[Any] = mapped_column(Integer, name="usedCount", nullable=False)
-    startsAt: Mapped[Any] = mapped_column(DateTime, name="startsAt", nullable=False)
-    endsAt: Mapped[Any] = mapped_column(DateTime, name="endsAt", nullable=False)
-    status: Mapped[Any] = mapped_column(Enum("DRAFT", "ACTIVE", "PAUSED", "ENDED", name="PromoStatus"), name="status", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    usedCount: Mapped[Any] = mapped_column(Integer, name="usedCount", nullable=False, server_default=text('0'))
+    startsAt: Mapped[Any] = mapped_column(JsDateTime, name="startsAt", nullable=False)
+    endsAt: Mapped[Any] = mapped_column(JsDateTime, name="endsAt", nullable=False)
+    status: Mapped[Any] = mapped_column(Enum("DRAFT", "ACTIVE", "PAUSED", "ENDED", name="PromoStatus"), name="status", nullable=False, server_default=text('\'DRAFT\'::"PromoStatus"'))
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class PromoUsage(Base):
@@ -315,7 +316,7 @@ class PromoUsage(Base):
     promoId: Mapped[Any] = mapped_column(Integer, name="promoId", nullable=False)
     userId: Mapped[Any] = mapped_column(Integer, name="userId", nullable=False)
     orderId: Mapped[Any] = mapped_column(Integer, name="orderId")
-    usedAt: Mapped[Any] = mapped_column(DateTime, name="usedAt", nullable=False)
+    usedAt: Mapped[Any] = mapped_column(JsDateTime, name="usedAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class Report(Base):
@@ -328,11 +329,11 @@ class Report(Base):
     targetUserId: Mapped[Any] = mapped_column(Integer, name="targetUserId")
     reason: Mapped[Any] = mapped_column(Text, name="reason", nullable=False)
     description: Mapped[Any] = mapped_column(Text, name="description")
-    status: Mapped[Any] = mapped_column(Enum("NEW", "REVIEWING", "RESOLVED", "DISMISSED", name="ReportStatus"), name="status", nullable=False)
+    status: Mapped[Any] = mapped_column(Enum("NEW", "REVIEWING", "RESOLVED", "DISMISSED", name="ReportStatus"), name="status", nullable=False, server_default=text('\'NEW\'::"ReportStatus"'))
     handlerId: Mapped[Any] = mapped_column(Integer, name="handlerId")
     resolution: Mapped[Any] = mapped_column(Text, name="resolution")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
 
 
 class ReturnRequest(Base):
@@ -341,25 +342,25 @@ class ReturnRequest(Base):
     id: Mapped[Any] = mapped_column(Integer, name="id", primary_key=True, nullable=False)
     orderId: Mapped[Any] = mapped_column(Integer, name="orderId", nullable=False)
     reference: Mapped[Any] = mapped_column(Text, name="reference", nullable=False)
-    status: Mapped[Any] = mapped_column(Text, name="status", nullable=False)
+    status: Mapped[Any] = mapped_column(Text, name="status", nullable=False, server_default=text("'REQUESTED'::text"))
     originalOrderStatus: Mapped[Any] = mapped_column(Enum("PENDING_DEPOSIT", "DEPOSITED", "CONFIRMED", "SHIPPING", "DELIVERED", "COMPLETED", "CANCELLED", "DISPUTED", "REFUNDED", name="OrderStatus"), name="originalOrderStatus", nullable=False)
     reason: Mapped[Any] = mapped_column(Text, name="reason", nullable=False)
-    evidences: Mapped[Any] = mapped_column(JSONB, name="evidences", nullable=False)
+    evidences: Mapped[Any] = mapped_column(JSONB, name="evidences", nullable=False, server_default=text("'[]'::jsonb"))
     resolution: Mapped[Any] = mapped_column(Text, name="resolution")
     fundingSource: Mapped[Any] = mapped_column(Text, name="fundingSource")
-    refundAmount: Mapped[Any] = mapped_column(Integer, name="refundAmount", nullable=False)
-    codAmount: Mapped[Any] = mapped_column(Integer, name="codAmount", nullable=False)
+    refundAmount: Mapped[Any] = mapped_column(Integer, name="refundAmount", nullable=False, server_default=text('0'))
+    codAmount: Mapped[Any] = mapped_column(Integer, name="codAmount", nullable=False, server_default=text('0'))
     codReference: Mapped[Any] = mapped_column(Text, name="codReference")
-    codRefundedAt: Mapped[Any] = mapped_column(DateTime, name="codRefundedAt")
-    codConfirmedAt: Mapped[Any] = mapped_column(DateTime, name="codConfirmedAt")
+    codRefundedAt: Mapped[Any] = mapped_column(JsDateTime, name="codRefundedAt")
+    codConfirmedAt: Mapped[Any] = mapped_column(JsDateTime, name="codConfirmedAt")
     trackingCode: Mapped[Any] = mapped_column(Text, name="trackingCode")
     receivedNote: Mapped[Any] = mapped_column(Text, name="receivedNote")
-    requestedAt: Mapped[Any] = mapped_column(DateTime, name="requestedAt", nullable=False)
-    approvedAt: Mapped[Any] = mapped_column(DateTime, name="approvedAt")
-    shippedAt: Mapped[Any] = mapped_column(DateTime, name="shippedAt")
-    receivedAt: Mapped[Any] = mapped_column(DateTime, name="receivedAt")
-    refundedAt: Mapped[Any] = mapped_column(DateTime, name="refundedAt")
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
+    requestedAt: Mapped[Any] = mapped_column(JsDateTime, name="requestedAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    approvedAt: Mapped[Any] = mapped_column(JsDateTime, name="approvedAt")
+    shippedAt: Mapped[Any] = mapped_column(JsDateTime, name="shippedAt")
+    receivedAt: Mapped[Any] = mapped_column(JsDateTime, name="receivedAt")
+    refundedAt: Mapped[Any] = mapped_column(JsDateTime, name="refundedAt")
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
 
 
 class Review(Base):
@@ -372,11 +373,11 @@ class Review(Base):
     listingId: Mapped[Any] = mapped_column(Integer, name="listingId")
     rating: Mapped[Any] = mapped_column(Integer, name="rating", nullable=False)
     comment: Mapped[Any] = mapped_column(Text, name="comment")
-    type: Mapped[Any] = mapped_column(Text, name="type", nullable=False)
+    type: Mapped[Any] = mapped_column(Text, name="type", nullable=False, server_default=text("'SELLER'::text"))
     sellerReply: Mapped[Any] = mapped_column(Text, name="sellerReply")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
-    sentiment: Mapped[Any] = mapped_column(Text, name="sentiment", nullable=False)
-    sentimentSource: Mapped[Any] = mapped_column(Text, name="sentimentSource", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    sentiment: Mapped[Any] = mapped_column(Text, name="sentiment", nullable=False, server_default=text("'NEUTRAL'::text"))
+    sentimentSource: Mapped[Any] = mapped_column(Text, name="sentimentSource", nullable=False, server_default=text("'LOCAL'::text"))
 
 
 class Role(Base):
@@ -394,8 +395,8 @@ class SavedSearch(Base):
     userId: Mapped[Any] = mapped_column(Integer, name="userId", nullable=False)
     name: Mapped[Any] = mapped_column(Text, name="name", nullable=False)
     filters: Mapped[Any] = mapped_column(JSONB, name="filters", nullable=False)
-    enabled: Mapped[Any] = mapped_column(Boolean, name="enabled", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    enabled: Mapped[Any] = mapped_column(Boolean, name="enabled", nullable=False, server_default=text('true'))
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class SavedSearchMatch(Base):
@@ -403,7 +404,7 @@ class SavedSearchMatch(Base):
 
     searchId: Mapped[Any] = mapped_column(Integer, name="searchId", primary_key=True, nullable=False)
     listingId: Mapped[Any] = mapped_column(Integer, name="listingId", primary_key=True, nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class SellerProfile(Base):
@@ -412,11 +413,11 @@ class SellerProfile(Base):
     id: Mapped[Any] = mapped_column(Integer, name="id", primary_key=True, nullable=False)
     userId: Mapped[Any] = mapped_column(Integer, name="userId", nullable=False)
     shopName: Mapped[Any] = mapped_column(Text, name="shopName", nullable=False)
-    rating: Mapped[Any] = mapped_column(Float, name="rating", nullable=False)
-    totalReviews: Mapped[Any] = mapped_column(Integer, name="totalReviews", nullable=False)
-    responseRate: Mapped[Any] = mapped_column(Integer, name="responseRate", nullable=False)
-    totalOrders: Mapped[Any] = mapped_column(Integer, name="totalOrders", nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    rating: Mapped[Any] = mapped_column(Float, name="rating", nullable=False, server_default=text('0'))
+    totalReviews: Mapped[Any] = mapped_column(Integer, name="totalReviews", nullable=False, server_default=text('0'))
+    responseRate: Mapped[Any] = mapped_column(Integer, name="responseRate", nullable=False, server_default=text('100'))
+    totalOrders: Mapped[Any] = mapped_column(Integer, name="totalOrders", nullable=False, server_default=text('0'))
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class User(Base):
@@ -428,30 +429,30 @@ class User(Base):
     fullName: Mapped[Any] = mapped_column(Text, name="fullName", nullable=False)
     phone: Mapped[Any] = mapped_column(Text, name="phone")
     avatarUrl: Mapped[Any] = mapped_column(Text, name="avatarUrl")
-    dateOfBirth: Mapped[Any] = mapped_column(DateTime, name="dateOfBirth")
+    dateOfBirth: Mapped[Any] = mapped_column(JsDateTime, name="dateOfBirth")
     gender: Mapped[Any] = mapped_column(Text, name="gender")
     bio: Mapped[Any] = mapped_column(Text, name="bio")
-    isVerified: Mapped[Any] = mapped_column(Boolean, name="isVerified", nullable=False)
-    idVerified: Mapped[Any] = mapped_column(Boolean, name="idVerified", nullable=False)
-    status: Mapped[Any] = mapped_column(Enum("ACTIVE", "BANNED", "PENDING_VERIFICATION", name="UserStatus"), name="status", nullable=False)
+    isVerified: Mapped[Any] = mapped_column(Boolean, name="isVerified", nullable=False, server_default=text('false'))
+    idVerified: Mapped[Any] = mapped_column(Boolean, name="idVerified", nullable=False, server_default=text('false'))
+    status: Mapped[Any] = mapped_column(Enum("ACTIVE", "BANNED", "PENDING_VERIFICATION", name="UserStatus"), name="status", nullable=False, server_default=text('\'ACTIVE\'::"UserStatus"'))
     banReason: Mapped[Any] = mapped_column(Text, name="banReason")
-    bannedAt: Mapped[Any] = mapped_column(DateTime, name="bannedAt")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
+    bannedAt: Mapped[Any] = mapped_column(JsDateTime, name="bannedAt")
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
     googleId: Mapped[Any] = mapped_column(Text, name="googleId")
     passwordResetTokenHash: Mapped[Any] = mapped_column(Text, name="passwordResetTokenHash")
-    passwordResetExpiresAt: Mapped[Any] = mapped_column(DateTime, name="passwordResetExpiresAt")
+    passwordResetExpiresAt: Mapped[Any] = mapped_column(JsDateTime, name="passwordResetExpiresAt")
     emailVerificationTokenHash: Mapped[Any] = mapped_column(Text, name="emailVerificationTokenHash")
-    emailVerificationExpiresAt: Mapped[Any] = mapped_column(DateTime, name="emailVerificationExpiresAt")
-    sessionVersion: Mapped[Any] = mapped_column(Integer, name="sessionVersion", nullable=False)
-    canManageRoles: Mapped[Any] = mapped_column(Boolean, name="canManageRoles", nullable=False)
-    emailVerifiedAt: Mapped[Any] = mapped_column(DateTime, name="emailVerifiedAt")
+    emailVerificationExpiresAt: Mapped[Any] = mapped_column(JsDateTime, name="emailVerificationExpiresAt")
+    sessionVersion: Mapped[Any] = mapped_column(Integer, name="sessionVersion", nullable=False, server_default=text('0'))
+    canManageRoles: Mapped[Any] = mapped_column(Boolean, name="canManageRoles", nullable=False, server_default=text('false'))
+    emailVerifiedAt: Mapped[Any] = mapped_column(JsDateTime, name="emailVerifiedAt")
     emailOtpHash: Mapped[Any] = mapped_column(Text, name="emailOtpHash")
-    emailOtpExpiresAt: Mapped[Any] = mapped_column(DateTime, name="emailOtpExpiresAt")
-    emailOtpAttempts: Mapped[Any] = mapped_column(Integer, name="emailOtpAttempts", nullable=False)
+    emailOtpExpiresAt: Mapped[Any] = mapped_column(JsDateTime, name="emailOtpExpiresAt")
+    emailOtpAttempts: Mapped[Any] = mapped_column(Integer, name="emailOtpAttempts", nullable=False, server_default=text('0'))
     passwordOtpHash: Mapped[Any] = mapped_column(Text, name="passwordOtpHash")
-    passwordOtpExpiresAt: Mapped[Any] = mapped_column(DateTime, name="passwordOtpExpiresAt")
-    passwordOtpAttempts: Mapped[Any] = mapped_column(Integer, name="passwordOtpAttempts", nullable=False)
+    passwordOtpExpiresAt: Mapped[Any] = mapped_column(JsDateTime, name="passwordOtpExpiresAt")
+    passwordOtpAttempts: Mapped[Any] = mapped_column(Integer, name="passwordOtpAttempts", nullable=False, server_default=text('0'))
 
 
 class UserBlock(Base):
@@ -459,7 +460,7 @@ class UserBlock(Base):
 
     blockerId: Mapped[Any] = mapped_column(Integer, name="blockerId", primary_key=True, nullable=False)
     blockedId: Mapped[Any] = mapped_column(Integer, name="blockedId", primary_key=True, nullable=False)
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class UserRole(Base):
@@ -474,8 +475,8 @@ class Wallet(Base):
 
     id: Mapped[Any] = mapped_column(Integer, name="id", primary_key=True, nullable=False)
     userId: Mapped[Any] = mapped_column(Integer, name="userId", nullable=False)
-    balance: Mapped[Any] = mapped_column(Integer, name="balance", nullable=False)
-    pendingBalance: Mapped[Any] = mapped_column(Integer, name="pendingBalance", nullable=False)
+    balance: Mapped[Any] = mapped_column(Integer, name="balance", nullable=False, server_default=text('0'))
+    pendingBalance: Mapped[Any] = mapped_column(Integer, name="pendingBalance", nullable=False, server_default=text('0'))
 
 
 class WalletTransaction(Base):
@@ -486,10 +487,10 @@ class WalletTransaction(Base):
     type: Mapped[Any] = mapped_column(Enum("TOPUP", "WITHDRAW", "ORDER_INCOME", "ORDER_PAYMENT", "PLATFORM_FEE", "REFUND", "ADJUSTMENT", name="TxnType"), name="type", nullable=False)
     amount: Mapped[Any] = mapped_column(Integer, name="amount", nullable=False)
     balanceAfter: Mapped[Any] = mapped_column(Integer, name="balanceAfter", nullable=False)
-    status: Mapped[Any] = mapped_column(Enum("PENDING", "SUCCESS", "FAILED", name="TxnStatus"), name="status", nullable=False)
+    status: Mapped[Any] = mapped_column(Enum("PENDING", "SUCCESS", "FAILED", name="TxnStatus"), name="status", nullable=False, server_default=text('\'SUCCESS\'::"TxnStatus"'))
     reference: Mapped[Any] = mapped_column(Text, name="reference")
     note: Mapped[Any] = mapped_column(Text, name="note")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class WithdrawalRequest(Base):
@@ -500,17 +501,17 @@ class WithdrawalRequest(Base):
     requestKey: Mapped[Any] = mapped_column(Text, name="requestKey", nullable=False)
     reference: Mapped[Any] = mapped_column(Text, name="reference", nullable=False)
     amount: Mapped[Any] = mapped_column(Integer, name="amount", nullable=False)
-    fee: Mapped[Any] = mapped_column(Integer, name="fee", nullable=False)
+    fee: Mapped[Any] = mapped_column(Integer, name="fee", nullable=False, server_default=text('0'))
     bankName: Mapped[Any] = mapped_column(Text, name="bankName", nullable=False)
     accountNumber: Mapped[Any] = mapped_column(Text, name="accountNumber", nullable=False)
     accountName: Mapped[Any] = mapped_column(Text, name="accountName", nullable=False)
-    status: Mapped[Any] = mapped_column(Text, name="status", nullable=False)
+    status: Mapped[Any] = mapped_column(Text, name="status", nullable=False, server_default=text("'PENDING'::text"))
     resolution: Mapped[Any] = mapped_column(Text, name="resolution")
     transferReference: Mapped[Any] = mapped_column(Text, name="transferReference")
-    paidAt: Mapped[Any] = mapped_column(DateTime, name="paidAt")
+    paidAt: Mapped[Any] = mapped_column(JsDateTime, name="paidAt")
     handledBy: Mapped[Any] = mapped_column(Integer, name="handledBy")
-    createdAt: Mapped[Any] = mapped_column(DateTime, name="createdAt", nullable=False)
-    updatedAt: Mapped[Any] = mapped_column(DateTime, name="updatedAt", nullable=False)
+    createdAt: Mapped[Any] = mapped_column(JsDateTime, name="createdAt", nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    updatedAt: Mapped[Any] = mapped_column(JsDateTime, name="updatedAt", nullable=False)
     bankAccountId: Mapped[Any] = mapped_column(Integer, name="bankAccountId")
 
 

@@ -72,3 +72,33 @@ def _enum_labels(udt_name: str) -> set[str]:
             {"name": udt_name},
         )
         return {r.enumlabel for r in rows}
+
+
+def test_cot_co_default_trong_db_deu_khai_server_default():
+    """Thiếu server_default, SQLAlchemy chèn NULL thay vì để DB dùng default.
+
+    Prisma dựa vào default của DB (isVerified, status, sessionVersion...) nên lệch
+    chỗ này làm đăng ký tài khoản chết với NotNullViolation.
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT table_name, column_name, column_default
+                FROM information_schema.columns WHERE table_schema = 'public'
+                """
+            )
+        )
+        db_defaults = {
+            (r.table_name, r.column_name): r.column_default
+            for r in rows
+            if r.column_default and "nextval" not in r.column_default and r.table_name not in SKIP
+        }
+
+    model_defaults = {
+        (table.name, column.name)
+        for table in Base.metadata.tables.values()
+        for column in table.columns
+        if column.server_default is not None
+    }
+    assert model_defaults == set(db_defaults), f"lệch default: {model_defaults ^ set(db_defaults)}"

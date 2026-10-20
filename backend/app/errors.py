@@ -28,9 +28,15 @@ async def api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
 
 async def validation_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
     # Giống middleware.validate của bản Node: 400 + danh sách { field, message }
+    # Pydantic thêm tiền tố "Value error, " — bỏ đi để khớp thông báo zod.
+    def message(err: dict) -> str:
+        text = err["msg"]
+        for prefix in ("Value error, ", "Assertion failed, "):
+            text = text.removeprefix(prefix)
+        return text
+
     details = [
-        {"field": ".".join(str(p) for p in err["loc"][1:]), "message": err["msg"]}
-        for err in exc.errors()
+        {"field": ".".join(str(p) for p in err["loc"][1:]), "message": message(err)} for err in exc.errors()
     ]
     return JSONResponse(status_code=400, content=_body("Dữ liệu không hợp lệ", details))
 

@@ -8,7 +8,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 from .config import settings
+from .db import get_db
 from .errors import ApiError, api_error_handler, integrity_handler, unhandled_handler, validation_handler
+from .routers import auth as auth_router
 
 
 def create_app() -> FastAPI:
@@ -33,6 +35,8 @@ def create_app() -> FastAPI:
         # Bản Node trả new Date() → JSON dạng 2026-10-19T14:12:34.567Z
         now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         return {"ok": True, "service": "nola2hand-backend", "time": now}
+
+    app.include_router(auth_router.router, prefix="/api/v1/auth")
 
     @app.exception_handler(404)
     async def not_found(_request: Request, _exc: Exception) -> JSONResponse:
