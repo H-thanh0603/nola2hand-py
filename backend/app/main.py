@@ -3,11 +3,12 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.exc import IntegrityError
@@ -135,6 +136,8 @@ def create_app() -> FastAPI:
 
     app.add_middleware(PublicImageHeaders)
 
+    dist_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
     async def not_found_body() -> JSONResponse:
         # Giống hệt thông báo của bản Node (src/app.js:75)
         return JSONResponse(
@@ -143,7 +146,14 @@ def create_app() -> FastAPI:
         )
 
     @app.exception_handler(404)
-    async def not_found(_request: Request, _exc: Exception) -> JSONResponse:
+    async def not_found(request: Request, _exc: Exception) -> JSONResponse:
+        # Bản build React: chỉ trả file tĩnh cho đường dẫn không phải API/ảnh.
+        path = request.url.path
+        if request.method == "GET" and not path.startswith(("/api/", "/uploads/")) and dist_dir.is_dir():
+            target = (dist_dir / path.lstrip("/")).resolve()
+            if target.is_file() and target.is_relative_to(dist_dir.resolve()):
+                return FileResponse(target)
+            return FileResponse(dist_dir / "index.html")
         return await not_found_body()
 
     @app.exception_handler(405)

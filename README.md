@@ -17,8 +17,8 @@ Bản viết lại của sàn thương mại điện tử đồ cũ **Nola2Hand*
 
 ```
 backend/    FastAPI: router, model SQLAlchemy, service nghiệp vụ, migration Alembic
-frontend/   React + Vite + React Router
-docs/       Tài liệu API và thiết kế
+frontend/   React + Vite + React Router; bản build nằm ở `frontend/dist`
+docs/       Danh sách endpoint trong `API.md`
 ```
 
 ## Chạy thử
@@ -31,10 +31,13 @@ pip install -r requirements.txt
 cp ../.env.example .env    # rồi sửa DATABASE_URL, JWT_SECRET
 uvicorn app.main:app --reload --port 4000
 
-# Frontend
+# Frontend (dev, proxy /api + /uploads sang cổng 4000)
 cd frontend
 npm install
 npm run dev                # http://localhost:5173
+
+# Bản build: backend tự phục vụ frontend/dist tại http://localhost:4000/
+cd frontend && npm run build
 ```
 
 ## Lưu ý quan trọng
