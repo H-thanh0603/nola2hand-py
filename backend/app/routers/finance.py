@@ -167,15 +167,15 @@ def overview(db: Session = Depends(get_db)):
     ).scalar_one()
 
     recent_transactions = []
-    for txn, full_name in db.execute(
-        select(WalletTransaction, User.fullName)
+    for txn, wallet, full_name in db.execute(
+        select(WalletTransaction, Wallet, User.fullName)
         .join(Wallet, Wallet.id == WalletTransaction.walletId)
         .join(User, User.id == Wallet.userId)
         .order_by(WalletTransaction.createdAt.desc())
         .limit(5)
     ).all():
         item = to_dict(txn)
-        item["wallet"] = {"user": {"fullName": full_name}}
+        item["wallet"] = {**to_dict(wallet), "user": {"fullName": full_name}}
         recent_transactions.append(item)
 
     buyer = aliased(User)
@@ -235,7 +235,7 @@ def transactions(request: Request, db: Session = Depends(get_db)):
         conditions.append(WalletTransaction.createdAt <= end)
 
     rows = db.execute(
-        select(WalletTransaction, User.id, User.fullName)
+        select(WalletTransaction, Wallet, User.id, User.fullName)
         .join(Wallet, Wallet.id == WalletTransaction.walletId)
         .join(User, User.id == Wallet.userId)
         .where(*conditions)
@@ -248,9 +248,12 @@ def transactions(request: Request, db: Session = Depends(get_db)):
     ).scalar_one()
 
     data = []
-    for txn, user_id, full_name in rows:
+    for txn, wallet, user_id, full_name in rows:
         item = to_dict(txn)
-        item["wallet"] = {"user": {"id": user_id, "fullName": full_name}}
+        item["wallet"] = {
+            **to_dict(wallet),
+            "user": {"id": user_id, "fullName": full_name},
+        }
         data.append(item)
     return paged_result(data, total, page["page"], page["limit"])
 

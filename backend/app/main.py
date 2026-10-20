@@ -119,13 +119,21 @@ def create_app() -> FastAPI:
     app.include_router(promos_router.router, prefix="/api/v1/promos")
     app.include_router(banners_router.router, prefix="/api/v1/banners")
 
-    @app.exception_handler(404)
-    async def not_found(_request: Request, _exc: Exception) -> JSONResponse:
+    async def not_found_body() -> JSONResponse:
         # Giống hệt thông báo của bản Node (src/app.js:75)
         return JSONResponse(
             status_code=404,
             content={"message": "Endpoint không tồn tại. Kiểm tra lại đường dẫn, mọi API đều bắt đầu bằng /api/v1/..."},
         )
+
+    @app.exception_handler(404)
+    async def not_found(_request: Request, _exc: Exception) -> JSONResponse:
+        return await not_found_body()
+
+    @app.exception_handler(405)
+    async def method_not_allowed(_request: Request, _exc: Exception) -> JSONResponse:
+        # Express không có 405: sai method cũng rơi vào 404 của app.js.
+        return await not_found_body()
 
     return app
 
