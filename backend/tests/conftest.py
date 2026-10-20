@@ -13,6 +13,7 @@ from app.models import (
     Address,
     AuditLog,
     BankAccount,
+    Banner,
     CartItem,
     Category,
     Dispute,
@@ -47,16 +48,31 @@ from app.models import (
 )
 
 MAIL_DIR = Path(__file__).resolve().parents[1] / ".local" / "mail"
+UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+EVIDENCE_DIR = Path(__file__).resolve().parents[2] / ".local" / "evidence"
+
+
+def _snapshot(directory: Path) -> set[Path]:
+    return set(directory.glob("*")) if directory.exists() else set()
 
 
 @pytest.fixture
 def client():
     from app.routers.assistant import assistant_limiter
     from app.routers.auth import auth_limiter
+    from app.routers.upload import upload_limiter
 
     auth_limiter.clear()  # giới hạn 100 lượt/15 phút của bản Node không làm hỏng test
     assistant_limiter.clear()
-    return TestClient(create_app(), raise_server_exceptions=False)
+    upload_limiter.clear()
+    uploads_before = _snapshot(UPLOAD_DIR)
+    evidence_before = _snapshot(EVIDENCE_DIR)
+
+    yield TestClient(create_app(), raise_server_exceptions=False)
+
+    for directory, before in ((UPLOAD_DIR, uploads_before), (EVIDENCE_DIR, evidence_before)):
+        for file in _snapshot(directory) - before:
+            file.unlink()
 
 
 @pytest.fixture
@@ -173,6 +189,7 @@ def make_user(client):
         )
         db.execute(delete(Order).where(Order.id.in_(order_ids)))
         db.execute(delete(Promo).where(Promo.code.like("qa-promo-%")))
+        db.execute(delete(Banner).where(Banner.title.like("qa-banner-%")))
         db.execute(delete(Listing).where(Listing.sellerId.in_(created)))
 
         targets = [f"listing:{listing_id}" for listing_id in listing_ids]

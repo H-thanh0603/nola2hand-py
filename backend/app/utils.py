@@ -20,6 +20,20 @@ def now() -> datetime:
     return as_json_datetime(datetime.now(timezone.utc).replace(tzinfo=None))
 
 
+def parse_js_date(value: str) -> datetime:
+    """new Date(value) cho chuỗi ISO; chuỗi không có múi giờ hiểu là UTC.
+
+    Frontend luôn gửi `toISOString()` nên nhánh không múi giờ chỉ là lưới an toàn.
+    """
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ApiError(400, "Ngày giờ không hợp lệ") from exc
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return as_json_datetime(parsed)
+
+
 def vnd(amount: int) -> str:
     """10.000 — giống Number.toLocaleString('vi-VN') trong thông báo."""
     return f"{amount:,}".replace(",", ".")

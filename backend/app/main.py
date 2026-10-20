@@ -1,4 +1,7 @@
 """API Nola2Hand — FastAPI, giữ nguyên hình dạng JSON của bản Node."""
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
@@ -8,11 +11,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 from .config import settings
-from .db import get_db
+from .db import SessionLocal, get_db
 from .errors import ApiError, api_error_handler, integrity_handler, unhandled_handler, validation_handler
 from .routers import admin_users as admin_users_router
+from .routers import audit as audit_router
 from .routers import auth as auth_router
 from .routers import assistant as assistant_router
+from .routers import banners as banners_router
 from .routers import cart as cart_router
 from .routers import chat as chat_router
 from .routers import categories as categories_router
@@ -24,18 +29,48 @@ from .routers import notifications as notifications_router
 from .routers import offers as offers_router
 from .routers import orders as orders_router
 from .routers import posts as posts_router
+from .routers import promos as promos_router
 from .routers import reports as reports_router
 from .routers import returns as returns_router
 from .routers import reviews as reviews_router
 from .routers import saved_searches as saved_searches_router
+from .routers import seller as seller_router
+from .routers import upload as upload_router
 from .routers import reviews as reviews_router
 from .routers import shops as shops_router
 from .routers import users as users_router
 from .routers import wallet as wallet_router
+from .services.reservations import expire_reservations
+
+logger = logging.getLogger("uvicorn.error")
+
+
+def _expire_reservations() -> None:
+    with SessionLocal() as db:
+        expire_reservations(db)
+
+
+async def _reservation_loop() -> None:
+    """Như setInterval 60 giây của bản Node (src/app.js:79)."""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            await asyncio.to_thread(_expire_reservations)
+        except Exception:  # một lần lỗi DB không được làm chết bộ dọn
+            logger.exception("Reservation cleanup")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task = asyncio.create_task(_reservation_loop())
+    yield
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Nola2Hand API", docs_url=None, redoc_url=None)
+    app = FastAPI(title="Nola2Hand API", docs_url=None, redoc_url=None, lifespan=lifespan)
 
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(RequestValidationError, validation_handler)
@@ -78,6 +113,11 @@ def create_app() -> FastAPI:
     app.include_router(notifications_router.router, prefix="/api/v1/notifications")
     app.include_router(saved_searches_router.router, prefix="/api/v1/saved-searches")
     app.include_router(assistant_router.router, prefix="/api/v1/assistant")
+    app.include_router(audit_router.router, prefix="/api/v1/admin/audit")
+    app.include_router(seller_router.router, prefix="/api/v1/seller")
+    app.include_router(upload_router.router, prefix="/api/v1/upload")
+    app.include_router(promos_router.router, prefix="/api/v1/promos")
+    app.include_router(banners_router.router, prefix="/api/v1/banners")
 
     @app.exception_handler(404)
     async def not_found(_request: Request, _exc: Exception) -> JSONResponse:
