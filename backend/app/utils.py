@@ -82,6 +82,10 @@ def gen_order_code() -> str:
     return f"NL2H-{random.randint(10000, 99999)}"
 
 
+def gen_dispute_code() -> str:
+    return f"TC-{random.randint(1000, 9999)}"
+
+
 def push_timeline(db: Session, order_id: int, status: str, note: str | None = None) -> None:
     db.add(OrderTimeline(orderId=order_id, status=status, note=note))
 

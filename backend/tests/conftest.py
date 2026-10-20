@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.db import SessionLocal
 from app.main import create_app
@@ -16,6 +16,7 @@ from app.models import (
     CartItem,
     Category,
     Dispute,
+    DisputeEvidence,
     Escrow,
     Favorite,
     FeeConfig,
@@ -29,6 +30,7 @@ from app.models import (
     PriceOffer,
     Promo,
     PromoUsage,
+    Report,
     ReturnRequest,
     Review,
     Role,
@@ -58,6 +60,9 @@ def make_user(client):
     """Đăng ký + đăng nhập một tài khoản thật; teardown xoá sạch mọi thứ nó tạo."""
     created: list[int] = []
     mail_before = set(MAIL_DIR.glob("*.json")) if MAIL_DIR.exists() else set()
+    with SessionLocal() as db:
+        # Thông báo gửi tới admin thật (vd. finance@nola2hand.vn) cũng phải dọn.
+        notif_before = db.execute(select(func.max(Notification.id))).scalar() or 0
 
     def factory(
         roles: list[str] | None = None,
@@ -131,9 +136,25 @@ def make_user(client):
         db.execute(delete(SavedSearchMatch).where(SavedSearchMatch.searchId.in_(search_ids)))
         db.execute(delete(SavedSearch).where(SavedSearch.userId.in_(created)))
         # Đơn hàng: xoá con trước để không vi phạm khoá ngoại.
+        db.execute(
+            delete(DisputeEvidence).where(
+                DisputeEvidence.disputeId.in_(select(Dispute.id).where(Dispute.orderId.in_(order_ids)))
+            )
+        )
         db.execute(delete(Dispute).where(Dispute.orderId.in_(order_ids)))
+        db.execute(
+            delete(Report).where(
+                Report.reporterId.in_(created) | Report.targetUserId.in_(created)
+            )
+        )
         db.execute(delete(ReturnRequest).where(ReturnRequest.orderId.in_(order_ids)))
-        db.execute(delete(Review).where(Review.orderId.in_(order_ids)))
+        db.execute(
+            delete(Review).where(
+                Review.orderId.in_(order_ids)
+                | Review.reviewerId.in_(created)
+                | Review.revieweeId.in_(created)
+            )
+        )
         db.execute(delete(Escrow).where(Escrow.orderId.in_(order_ids)))
         db.execute(delete(OrderTimeline).where(OrderTimeline.orderId.in_(order_ids)))
         db.execute(
@@ -156,7 +177,11 @@ def make_user(client):
                 AuditLog.adminId.in_(created) | AuditLog.target.in_(targets)
             )
         )
-        db.execute(delete(Notification).where(Notification.userId.in_(created)))
+        db.execute(
+            delete(Notification).where(
+                Notification.userId.in_(created) | (Notification.id > notif_before)
+            )
+        )
         db.execute(delete(Address).where(Address.userId.in_(created)))
         db.execute(delete(SellerProfile).where(SellerProfile.userId.in_(created)))
         db.execute(delete(UserRole).where(UserRole.userId.in_(created)))
