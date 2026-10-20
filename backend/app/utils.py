@@ -1,12 +1,13 @@
 """Helper dùng chung — port dần từ src/utils.js khi tới route cần."""
 import math
+import random
 from datetime import datetime, timezone
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from .errors import ApiError
-from .models import Notification, Wallet, WalletTransaction
+from .models import Category, FeeConfig, Notification, OrderTimeline, Wallet, WalletTransaction
 from .types import as_json_datetime
 
 
@@ -75,3 +76,41 @@ def apply_wallet(
         )
     )
     return balance_after
+
+
+def gen_order_code() -> str:
+    return f"NL2H-{random.randint(10000, 99999)}"
+
+
+def push_timeline(db: Session, order_id: int, status: str, note: str | None = None) -> None:
+    db.add(OrderTimeline(orderId=order_id, status=status, note=note))
+
+
+def calc_platform_fee(db: Session, category_id: int, order_amount: int) -> tuple[int, float]:
+    """Phí sàn của một đơn: ưu tiên feePct của danh mục, không có thì lấy cấu hình chung."""
+    category = db.execute(select(Category).where(Category.id == category_id)).scalar_one_or_none()
+    percent = 5.0
+    if category is not None and category.feePct is not None:
+        percent = category.feePct
+    else:
+        config = db.execute(
+            select(FeeConfig).where(
+                FeeConfig.kind == "PLATFORM_TXN",
+                FeeConfig.name == "Phí sàn chung",
+                FeeConfig.isActive.is_(True),
+            )
+        ).scalars().first()
+        if config is not None and config.percent is not None:
+            percent = config.percent
+
+    min_config = db.execute(
+        select(FeeConfig).where(
+            FeeConfig.kind == "PLATFORM_TXN",
+            FeeConfig.name == "Phí sàn chung",
+            FeeConfig.isActive.is_(True),
+        )
+    ).scalars().first()
+    minimum = min_config.minAmount if min_config is not None and min_config.minAmount is not None else 5000
+    raw = js_round(order_amount * percent / 100)
+    return max(raw, minimum), float(percent)
+

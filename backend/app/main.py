@@ -12,11 +12,17 @@ from .db import get_db
 from .errors import ApiError, api_error_handler, integrity_handler, unhandled_handler, validation_handler
 from .routers import admin_users as admin_users_router
 from .routers import auth as auth_router
+from .routers import cart as cart_router
 from .routers import categories as categories_router
+from .routers import escrow as escrow_router
+from .routers import finance as finance_router
 from .routers import listings as listings_router
+from .routers import offers as offers_router
+from .routers import orders as orders_router
 from .routers import posts as posts_router
 from .routers import shops as shops_router
 from .routers import users as users_router
+from .routers import wallet as wallet_router
 
 
 def create_app() -> FastAPI:
@@ -49,6 +55,12 @@ def create_app() -> FastAPI:
     app.include_router(listings_router.router, prefix="/api/v1/listings")
     app.include_router(posts_router.router, prefix="/api/v1/posts")
     app.include_router(shops_router.router, prefix="/api/v1/shops")
+    app.include_router(offers_router.router, prefix="/api/v1/offers")
+    app.include_router(orders_router.router, prefix="/api/v1/orders")
+    app.include_router(cart_router.router, prefix="/api/v1/cart")
+    app.include_router(escrow_router.router, prefix="/api/v1/escrow")
+    app.include_router(wallet_router.router, prefix="/api/v1/wallet")
+    app.include_router(finance_router.router, prefix="/api/v1/admin/finance")
 
     @app.exception_handler(404)
     async def not_found(_request: Request, _exc: Exception) -> JSONResponse:

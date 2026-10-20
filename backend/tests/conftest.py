@@ -12,14 +12,25 @@ from app.models import (
     ActionQuota,
     Address,
     AuditLog,
+    BankAccount,
+    CartItem,
     Category,
+    Dispute,
+    Escrow,
     Favorite,
+    FeeConfig,
     Listing,
     ListingImage,
     Notification,
+    Order,
+    OrderTimeline,
     Post,
     PriceHistory,
     PriceOffer,
+    Promo,
+    PromoUsage,
+    ReturnRequest,
+    Review,
     Role,
     SavedSearch,
     SavedSearchMatch,
@@ -28,6 +39,7 @@ from app.models import (
     UserRole,
     Wallet,
     WalletTransaction,
+    WithdrawalRequest,
 )
 
 MAIL_DIR = Path(__file__).resolve().parents[1] / ".local" / "mail"
@@ -100,6 +112,11 @@ def make_user(client):
         search_ids = list(
             db.execute(select(SavedSearch.id).where(SavedSearch.userId.in_(created))).scalars()
         )
+        order_ids = list(
+            db.execute(
+                select(Order.id).where(Order.buyerId.in_(created) | Order.sellerId.in_(created))
+            ).scalars()
+        )
 
         db.execute(delete(PriceOffer).where(PriceOffer.listingId.in_(listing_ids)))
         db.execute(delete(SavedSearchMatch).where(SavedSearchMatch.listingId.in_(listing_ids)))
@@ -113,6 +130,24 @@ def make_user(client):
         db.execute(delete(Post).where(Post.authorId.in_(created)))
         db.execute(delete(SavedSearchMatch).where(SavedSearchMatch.searchId.in_(search_ids)))
         db.execute(delete(SavedSearch).where(SavedSearch.userId.in_(created)))
+        # Đơn hàng: xoá con trước để không vi phạm khoá ngoại.
+        db.execute(delete(Dispute).where(Dispute.orderId.in_(order_ids)))
+        db.execute(delete(ReturnRequest).where(ReturnRequest.orderId.in_(order_ids)))
+        db.execute(delete(Review).where(Review.orderId.in_(order_ids)))
+        db.execute(delete(Escrow).where(Escrow.orderId.in_(order_ids)))
+        db.execute(delete(OrderTimeline).where(OrderTimeline.orderId.in_(order_ids)))
+        db.execute(
+            delete(PromoUsage).where(
+                PromoUsage.userId.in_(created) | PromoUsage.orderId.in_(order_ids)
+            )
+        )
+        db.execute(
+            delete(CartItem).where(
+                CartItem.userId.in_(created) | CartItem.listingId.in_(listing_ids)
+            )
+        )
+        db.execute(delete(Order).where(Order.id.in_(order_ids)))
+        db.execute(delete(Promo).where(Promo.code.like("qa-promo-%")))
         db.execute(delete(Listing).where(Listing.sellerId.in_(created)))
 
         targets = [f"listing:{listing_id}" for listing_id in listing_ids]
@@ -125,6 +160,13 @@ def make_user(client):
         db.execute(delete(Address).where(Address.userId.in_(created)))
         db.execute(delete(SellerProfile).where(SellerProfile.userId.in_(created)))
         db.execute(delete(UserRole).where(UserRole.userId.in_(created)))
+        db.execute(delete(WithdrawalRequest).where(WithdrawalRequest.userId.in_(created)))
+        db.execute(
+            delete(BankAccount).where(
+                BankAccount.walletId.in_(select(Wallet.id).where(Wallet.userId.in_(created)))
+            )
+        )
+        db.execute(delete(FeeConfig).where(FeeConfig.name.like("qa-fee-%")))
         db.execute(
             delete(WalletTransaction).where(
                 WalletTransaction.walletId.in_(select(Wallet.id).where(Wallet.userId.in_(created)))
