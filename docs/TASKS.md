@@ -2,6 +2,8 @@
 
 Tài liệu nền: [`docs/PROJECT.md`](./PROJECT.md). Danh sách endpoint: [`docs/API.md`](./API.md).
 
+Bản Excel dễ đọc để giao việc và theo dõi tiến độ: [`docs/KE-HOACH-TASK-4-NGUOI.xlsx`](./KE-HOACH-TASK-4-NGUOI.xlsx) — 4 sheet: Tổng quan, Danh sách task, Lịch 2 tuần, Chức năng hiện tại.
+
 ## 1. Mục tiêu đợt này
 
 Hoàn thiện các chức năng còn thiếu so với checklist, đưa dự án từ "chạy được" sang "bàn giao được":

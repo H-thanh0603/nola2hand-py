@@ -18,7 +18,7 @@ Bản viết lại của sàn thương mại điện tử đồ cũ **Nola2Hand*
 ```
 backend/    FastAPI: router, model SQLAlchemy, service nghiệp vụ, migration Alembic
 frontend/   React + Vite + React Router; bản build nằm ở `frontend/dist`
-docs/       `PROJECT.md` (tổng quan), `API.md` (endpoint), `TASKS.md` (kế hoạch)
+docs/       `PROJECT.md` (tổng quan), `API.md` (endpoint), `TASKS.md` (kế hoạch), `KE-HOACH-TASK-4-NGUOI.xlsx` (bản Excel giao việc)
 ```
 
 ## Chạy thử
