@@ -10,7 +10,7 @@
 | Bản cũ | `H-thanh0603/nola2hand-ft` (Node.js + Express + Prisma + frontend thuần) |
 | Phiên bản | `v2.0-python-react` |
 | Trạng thái | Backend đủ 143 endpoint; frontend React đủ màn hình; đang ở giai đoạn hoàn thiện và kiểm thử |
-| Database | PostgreSQL dùng chung với bản Node, không nạp lại dữ liệu |
+| Database | PostgreSQL trên Supabase, dùng chung với bản Node; xem `docs/DATABASE.md` |
 | Ngôn ngữ | Python (backend), JavaScript/JSX (frontend) |
 
 ## 2. Mục tiêu và phạm vi
@@ -33,7 +33,7 @@ Ngoài phạm vi hiện tại: ứng dụng mobile native, microservice, đa ng�
 | ORM | SQLAlchemy 2.1 (sync) |
 | Migration | Alembic 1.20, baseline `7c0952c8735d` |
 | Validation | Pydantic 2.14 |
-| Database | PostgreSQL qua psycopg 3 |
+| Database | PostgreSQL 17 trên Supabase qua psycopg 3 |
 | Xác thực | JWT (PyJWT), bcrypt |
 | Google | google-auth |
 | HTTP client | httpx (Resend, OpenAI) |
@@ -72,7 +72,7 @@ FastAPI /api/v1
   ├── models.py      SQLAlchemy model sinh từ DB thật
   └── serialize.py   chuyển model → JSON giống Prisma
   ▼
-PostgreSQL (dùng chung với bản Node)
+PostgreSQL 17 trên Supabase (dùng chung với bản Node)
   ├── bảng/cột giữ kiểu Prisma: "User", "createdAt"
   └── enum PostgreSQL: OrderStatus, ListingStatus...
 ```
@@ -270,7 +270,7 @@ Sao chép `.env.example` thành `.env` trong `backend/`.
 
 | Biến | Bắt buộc | Ý nghĩa |
 |---|---|---|
-| `DATABASE_URL` | Có | PostgreSQL, dùng chung với bản Node |
+| `DATABASE_URL` | Có | PostgreSQL trên Supabase (session pooler), xem `docs/DATABASE.md` |
 | `JWT_SECRET` | Có | Phải trùng bản Node nếu muốn dùng chung token |
 | `JWT_EXPIRES_IN` | Không | Mặc định `7d` |
 | `PORT` | Không | Mặc định 4000 |
@@ -345,6 +345,7 @@ Lưu ý: token lưu `localStorage` giống bản cũ; nếu cần chống XSS m�
 - Bundle JS khoảng 705 KB, chưa code-split.
 - Chưa có bộ E2E tự động trong repo và CI.
 - URL ảnh seed chứa `localhost:4000`; khi deploy domain khác cần chuẩn hoá.
+- Supabase free tier có thể tạm dừng project khi ít hoạt động; cần resume trên dashboard.
 
 ## 15. Việc còn thiếu
 

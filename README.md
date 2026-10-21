@@ -3,7 +3,7 @@
 Bản viết lại của sàn thương mại điện tử đồ cũ **Nola2Hand** bằng **FastAPI** (backend) và **React** (frontend).
 
 - Bản gốc đang chạy được (Node.js + Express + Prisma + frontend thuần): [H-thanh0603/nola2hand-ft](https://github.com/H-thanh0603/nola2hand-ft)
-- Dùng chung **một database PostgreSQL** với bản gốc. Không cần nạp lại dữ liệu.
+- Dùng chung **một database PostgreSQL trên Supabase** với bản gốc. Không cần nạp lại dữ liệu; xem [`docs/DATABASE.md`](docs/DATABASE.md).
 - Mục tiêu: giữ nguyên toàn bộ 143 endpoint cũ để frontend có thể chuyển sang React từng bước.
 
 ## Trạng thái
@@ -18,7 +18,7 @@ Bản viết lại của sàn thương mại điện tử đồ cũ **Nola2Hand*
 ```
 backend/    FastAPI: router, model SQLAlchemy, service nghiệp vụ, migration Alembic
 frontend/   React + Vite + React Router; bản build nằm ở `frontend/dist`
-docs/       `PROJECT.md` (tổng quan), `API.md` (endpoint), `TASKS.md` (kế hoạch), `KE-HOACH-TASK-4-NGUOI.xlsx` (bản Excel giao việc)
+docs/       `PROJECT.md` (tổng quan), `API.md` (endpoint), `DATABASE.md` (Supabase), `TASKS.md` (kế hoạch), `KE-HOACH-TASK-4-NGUOI.xlsx` (bản Excel giao việc)
 ```
 
 ## Chạy thử
@@ -28,7 +28,7 @@ docs/       `PROJECT.md` (tổng quan), `API.md` (endpoint), `TASKS.md` (kế ho
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp ../.env.example .env    # rồi sửa DATABASE_URL, JWT_SECRET
+cp ../.env.example .env    # rồi sửa DATABASE_URL (Supabase), JWT_SECRET
 uvicorn app.main:app --reload --port 4000
 
 # Frontend (dev, proxy /api + /uploads sang cổng 4000)
@@ -39,6 +39,11 @@ npm run dev                # http://localhost:5173
 # Bản build: backend tự phục vụ frontend/dist tại http://localhost:4000/
 cd frontend && npm run build
 ```
+
+## Database dùng chung
+
+Database nằm trên Supabase. Thông tin kết nối và cách vào làm cùng: [`docs/DATABASE.md`](docs/DATABASE.md).
+Connection string gửi riêng, không commit `backend/.env`.
 
 ## Lưu ý quan trọng
 
