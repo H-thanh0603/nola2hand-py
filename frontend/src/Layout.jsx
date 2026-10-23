@@ -34,6 +34,14 @@ export default function Layout() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
+  if (isAdmin) {
+    return (
+      <main id="app">
+        <Outlet />
+      </main>
+    );
+  }
+
   return (
     <>
       <Topbar />
