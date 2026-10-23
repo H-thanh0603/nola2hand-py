@@ -22,6 +22,7 @@ import {
   ORDER_ST,
 } from '../constants';
 import { fmtDate, fmtVND, img, onImgError } from '../utils';
+import { VIETNAM_PROVINCES } from '../provinces';
 
 const TABS = [
   ['dashboard', 'Tổng quan', 'grid'],
@@ -529,6 +530,18 @@ function SellerListings() {
 
 /* ---------------- listing form ---------------- */
 
+const PRICE_STEP = 10_000;
+const PRICE_MAX = 10_000_000_000;
+
+function priceText(value) {
+  return value === '' ? '' : Number(value).toLocaleString('vi-VN');
+}
+
+function priceDigits(value) {
+  const digits = String(value).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  return digits ? String(Math.min(Number(digits), PRICE_MAX)) : '';
+}
+
 function ListingForm({ listing = null }) {
   const categories = useCategories();
   const navigate = useNavigate();
@@ -586,6 +599,13 @@ function ListingForm({ listing = null }) {
       ...current,
       specifications: { ...current.specifications, [key]: value },
     }));
+  }
+
+  function adjustPrice(delta) {
+    setForm((current) => {
+      const next = Math.min(PRICE_MAX, Math.max(0, (Number(current.price) || 0) + delta));
+      return { ...current, price: String(next) };
+    });
   }
 
   async function addImages(event) {
@@ -683,7 +703,7 @@ function ListingForm({ listing = null }) {
       categoryId: Number(form.categoryId),
       title: form.title.trim(),
       description: form.description.trim(),
-      price: Number(form.price) || 0,
+      price: form.isFree ? 0 : Number(form.price) || 0,
       condition: form.condition,
       isFree: form.isFree,
       images: form.images,
@@ -748,61 +768,87 @@ function ListingForm({ listing = null }) {
             </select>
           </div>
           <div className="form-row">
-            <label className="lbl" htmlFor="nl-cond">
-              Tình trạng *
+            <label className="lbl" htmlFor="nl-city">
+              Tỉnh / thành phố *
             </label>
             <select
               className="input"
-              id="nl-cond"
-              value={form.condition}
-              onChange={(event) =>
-                setForm((value) => ({ ...value, condition: event.target.value }))
-              }
+              id="nl-city"
+              required
+              value={form.city}
+              onChange={(event) => setForm((value) => ({ ...value, city: event.target.value }))}
             >
-              {Object.entries(CONDITION_NAMES).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
+              <option value="">Chọn tỉnh / thành phố</option>
+              {form.city && !VIETNAM_PROVINCES.includes(form.city) && (
+                <option value={form.city}>{form.city} (giá trị hiện tại)</option>
+              )}
+              {VIETNAM_PROVINCES.map((province) => (
+                <option key={province} value={province}>
+                  {province}
                 </option>
               ))}
             </select>
           </div>
         </div>
-        <div className="row2">
-          <div className="form-row">
-            <label className="lbl" htmlFor="nl-price">
-              Giá bán (đ) *
-            </label>
-            <input
-              className="input"
-              id="nl-price"
-              type="number"
-              required
-              min="0"
+        <div className="form-row">
+          <label className="lbl" htmlFor="nl-price">
+            Giá bán (VNĐ) *
+          </label>
+          <div className="price-field">
+            <button
+              type="button"
+              className="btn btn-line btn-sm"
               disabled={form.isFree}
-              value={form.price}
-              onChange={(event) =>
-                setForm((value) => ({ ...value, price: event.target.value }))
-              }
-            />
-          </div>
-          <div className="form-row">
-            <label className="lbl" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              onClick={() => adjustPrice(-PRICE_STEP)}
+              aria-label="Giảm 10.000 đồng"
+            >
+              -10k
+            </button>
+            <div className="price-wrap">
               <input
-                type="checkbox"
-                id="nl-free"
-                style={{ accentColor: 'var(--green)' }}
-                checked={form.isFree}
+                className="input"
+                id="nl-price"
+                type="text"
+                inputMode="numeric"
+                required
+                disabled={form.isFree}
+                placeholder="VD: 1.000.000"
+                value={priceText(form.price)}
                 onChange={(event) =>
-                  setForm((value) => ({
-                    ...value,
-                    isFree: event.target.checked,
-                    price: event.target.checked ? 0 : value.price,
-                  }))
+                  setForm((value) => ({ ...value, price: priceDigits(event.target.value) }))
                 }
               />
-              🎁 Cho tặng 0đ (miễn phí)
-            </label>
+              <span className="price-unit">VNĐ</span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-line btn-sm"
+              disabled={form.isFree}
+              onClick={() => adjustPrice(PRICE_STEP)}
+              aria-label="Tăng 10.000 đồng"
+            >
+              +10k
+            </button>
           </div>
+          <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            Mỗi lần nhấn tăng/giảm 10.000 đ.
+          </p>
+          <label className="lbl" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <input
+              type="checkbox"
+              id="nl-free"
+              style={{ accentColor: 'var(--green)' }}
+              checked={form.isFree}
+              onChange={(event) =>
+                setForm((value) => ({
+                  ...value,
+                  isFree: event.target.checked,
+                  price: event.target.checked ? 0 : value.price,
+                }))
+              }
+            />
+            🎁 Cho tặng 0đ (miễn phí)
+          </label>
         </div>
         <div className="form-row">
           <label className="lbl" htmlFor="nl-files">
@@ -872,68 +918,80 @@ function ListingForm({ listing = null }) {
             }
           />
         </div>
-        <div className="form-row">
-          <label className="lbl" htmlFor="nl-city">
-            Tỉnh / thành phố
-          </label>
-          <input
-            className="input"
-            id="nl-city"
-            maxLength="100"
-            value={form.city}
-            onChange={(event) => setForm((value) => ({ ...value, city: event.target.value }))}
-          />
-        </div>
-        <div className="form-row">
-          <label className="lbl" htmlFor="nl-delivery">
-            Hình thức giao nhận
-          </label>
-          <select
-            className="input"
-            id="nl-delivery"
-            value={form.deliveryMethod}
-            onChange={(event) =>
-              setForm((value) => ({ ...value, deliveryMethod: event.target.value }))
-            }
-          >
-            {Object.entries(DELIVERY_NAMES).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label === 'Giao hàng hoặc gặp trực tiếp'
-                  ? 'Gặp trực tiếp hoặc giao hàng'
-                  : label}
-              </option>
-            ))}
-          </select>
-        </div>
-        {Object.keys(specFields).length > 0 && (
-          <fieldset className="specification-form">
-            <legend>Hồ sơ tình trạng sản phẩm</legend>
-            <p className="muted">
-              Thông tin do người bán cung cấp. Hãy ghi rõ các lỗi và lịch sử sửa chữa.
-            </p>
-            {Object.entries(specFields).map(([key, label]) => {
-              const numeric = ['batteryHealth', 'width', 'depth', 'height', 'power'].includes(key);
-              return (
-                <div className="form-row" key={key}>
-                  <label className="lbl" htmlFor={`spec-${key}`}>
+        <details className="listing-extra">
+          <summary>Thông tin thêm (không bắt buộc)</summary>
+          <div className="row2">
+            <div className="form-row">
+              <label className="lbl" htmlFor="nl-cond">
+                Tình trạng
+              </label>
+              <select
+                className="input"
+                id="nl-cond"
+                value={form.condition}
+                onChange={(event) =>
+                  setForm((value) => ({ ...value, condition: event.target.value }))
+                }
+              >
+                {Object.entries(CONDITION_NAMES).map(([key, label]) => (
+                  <option key={key} value={key}>
                     {label}
-                  </label>
-                  <input
-                    className="input"
-                    id={`spec-${key}`}
-                    type={numeric ? 'number' : undefined}
-                    min={numeric ? '0' : undefined}
-                    step={numeric ? 'any' : undefined}
-                    max={key === 'batteryHealth' ? '100' : undefined}
-                    maxLength={numeric ? undefined : 250}
-                    value={form.specifications[key] ?? ''}
-                    onChange={(event) => setSpec(key, event.target.value)}
-                  />
-                </div>
-              );
-            })}
-          </fieldset>
-        )}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-row">
+              <label className="lbl" htmlFor="nl-delivery">
+                Hình thức giao nhận
+              </label>
+              <select
+                className="input"
+                id="nl-delivery"
+                value={form.deliveryMethod}
+                onChange={(event) =>
+                  setForm((value) => ({ ...value, deliveryMethod: event.target.value }))
+                }
+              >
+                {Object.entries(DELIVERY_NAMES).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label === 'Giao hàng hoặc gặp trực tiếp'
+                      ? 'Gặp trực tiếp hoặc giao hàng'
+                      : label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {Object.keys(specFields).length > 0 && (
+            <fieldset className="specification-form">
+              <legend>Thông số sản phẩm</legend>
+              <p className="muted">
+                Thông tin do người bán cung cấp. Hãy ghi rõ các lỗi và lịch sử sửa chữa.
+              </p>
+              {Object.entries(specFields).map(([key, label]) => {
+                const numeric = ['batteryHealth', 'width', 'depth', 'height', 'power'].includes(key);
+                return (
+                  <div className="form-row" key={key}>
+                    <label className="lbl" htmlFor={`spec-${key}`}>
+                      {label}
+                    </label>
+                    <input
+                      className="input"
+                      id={`spec-${key}`}
+                      type={numeric ? 'number' : undefined}
+                      min={numeric ? '0' : undefined}
+                      step={numeric ? 'any' : undefined}
+                      max={key === 'batteryHealth' ? '100' : undefined}
+                      maxLength={numeric ? undefined : 250}
+                      value={form.specifications[key] ?? ''}
+                      onChange={(event) => setSpec(key, event.target.value)}
+                    />
+                  </div>
+                );
+              })}
+            </fieldset>
+          )}
+        </details>
         <button className="btn btn-line" type="button" onClick={preview}>
           Xem trước
         </button>{' '}
