@@ -554,6 +554,7 @@ function ListingForm({ listing = null }) {
   );
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [priceFocused, setPriceFocused] = useState(false);
   const [linkText, setLinkText] = useState('');
   const [form, setForm] = useState(() => ({
     title: listing?.title || '',
@@ -813,10 +814,17 @@ function ListingForm({ listing = null }) {
                 required
                 disabled={form.isFree}
                 placeholder="VD: 1.000.000"
-                value={priceText(form.price)}
+                value={priceFocused ? form.price : priceText(form.price)}
+                onFocus={() => setPriceFocused(true)}
+                onBlur={() => setPriceFocused(false)}
                 onChange={(event) =>
                   setForm((value) => ({ ...value, price: priceDigits(event.target.value) }))
                 }
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+                  event.preventDefault();
+                  adjustPrice(event.key === 'ArrowUp' ? PRICE_STEP : -PRICE_STEP);
+                }}
               />
               <span className="price-unit">VNĐ</span>
             </div>
