@@ -197,11 +197,15 @@ export const useModal = () => useContext(ModalContext);
 
 /* ---------------- small pieces ---------------- */
 export function Avatar({ user, size = 32 }) {
-  if (user?.avatarUrl) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [user?.avatarUrl]);
+  if (user?.avatarUrl && !failed) {
     return (
       <img
         src={img(user.avatarUrl)}
         alt=""
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
         style={{
           width: size,
           height: size,

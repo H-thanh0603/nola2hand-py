@@ -350,6 +350,18 @@ def google_login(payload: GoogleIn, db: Session = Depends(get_db)):
         user.updatedAt = moment
         db.commit()
 
+    if user is not None:
+        # Ảnh Google có thể đổi sau lần đăng nhập trước; chỉ cập nhật ảnh do Google cấp.
+        picture = info.get("picture")
+        if (
+            picture
+            and picture != user.avatarUrl
+            and (not user.avatarUrl or ".googleusercontent.com/" in user.avatarUrl)
+        ):
+            user.avatarUrl = picture
+            user.updatedAt = moment
+            db.commit()
+
     if user is None:
         name = info.get("name") or email.split("@")[0]
         user = User(
