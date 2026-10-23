@@ -40,6 +40,10 @@ npm run dev                # http://localhost:5173
 cd frontend && npm run build
 ```
 
+Google login dùng `GOOGLE_CLIENT_ID` trong `backend/.env`; frontend tự lấy qua `/api/v1/auth/config`.
+Trong Google Cloud Console, thêm `http://localhost:4000` (và `http://localhost:5173` khi chạy Vite)
+vào **Authorized JavaScript origins** của OAuth client.
+
 ## Database dùng chung
 
 Database nằm trên Supabase. Thông tin kết nối và cách vào làm cùng: [`docs/DATABASE.md`](docs/DATABASE.md).

@@ -155,7 +155,7 @@ Ký hiệu: ✅ có và dùng được; ⚠️ có nhưng cần cấu hình ho�
 | 11 | Biểu đồ tròn | ✅ | Admin: trạng thái đơn |
 | 12 | Admin quản lý người dùng/sản phẩm/đơn hàng | ✅ | Khoá/mở, xác minh, role, duyệt tin, xem đơn |
 | 13 | Seller quản lý sản phẩm/doanh thu/đơn hàng | ✅ | Dashboard, tin đăng, đơn bán, biểu đồ, ví |
-| 14 | Đăng nhập bằng Google | ⚠️ | Code backend + frontend đã có; cần `GOOGLE_CLIENT_ID` và `VITE_GOOGLE_CLIENT_ID` |
+| 14 | Đăng nhập bằng Google | ⚠️ | Code backend + frontend đã có; cần `GOOGLE_CLIENT_ID` và thêm `http://localhost:4000` vào Authorized JavaScript origins |
 | 15 | Cập nhật thông tin cá nhân | ⚠️ | Sửa tên/điện thoại/bio, thêm/xoá địa chỉ; chưa sửa địa chỉ |
 | 16 | Cập nhật trạng thái đơn hàng | ✅ | Seller/buyer/admin theo đúng luồng trạng thái |
 | 17 | Huỷ đơn + hoàn tiền | ✅ | Huỷ trước khi giao; escrow hoàn về ví buyer |
@@ -278,11 +278,13 @@ Sao chép `.env.example` thành `.env` trong `backend/`.
 | `CLIENT_URL` | Không | Origin frontend dev |
 | `APP_URL` | Không | URL công khai của backend |
 | `RESEND_API_KEY`, `MAIL_FROM` | Không | Gửi email thật |
-| `GOOGLE_CLIENT_ID` | Không | Google login backend; phải khớp frontend |
+| `GOOGLE_CLIENT_ID` | Không | Google login; frontend tự đọc qua `/auth/config` |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | Không | Trợ lý AI + phân tích cảm xúc |
 | `AI_REVIEW_ANALYSIS` | Không | Bật phân tích cảm xúc bằng AI |
 
-Frontend dev dùng `VITE_GOOGLE_CLIENT_ID` (tạo file `frontend/.env`).
+Frontend không bắt buộc `VITE_GOOGLE_CLIENT_ID`; mặc định lấy client ID từ `/api/v1/auth/config`. Nếu muốn override lúc build, đặt biến này trong `frontend/.env`.
+
+Google Cloud phải thêm `http://localhost:4000` (và `http://localhost:5173` nếu chạy Vite) vào **Authorized JavaScript origins** của OAuth client.
 
 Không commit `.env`, `uploads/`, `.local/`.
 
@@ -334,7 +336,7 @@ Lưu ý: token lưu `localStorage` giống bản cũ; nếu cần chống XSS m�
 ## 14. Hạn chế đã biết
 
 - Thanh toán trực tuyến mới ở mức demo/ví nội bộ.
-- Google login và email thật phụ thuộc biến môi trường.
+- Google login phụ thuộc `GOOGLE_CLIENT_ID` và Authorized JavaScript origin; email thật phụ thuộc biến môi trường.
 - Chatbot AI và phân tích cảm xúc cần OpenAI key; thiếu key thì dùng fallback cục bộ.
 - Giỏ hàng không có số lượng; khuyến mãi chỉ áp cho giỏ một món vì mỗi tin tạo một đơn riêng.
 - Chưa sửa địa chỉ, chỉ thêm/xoá.

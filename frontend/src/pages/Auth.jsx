@@ -11,7 +11,7 @@ import { api } from '../api';
 import { useSession } from '../session';
 import { useToast } from '../ui';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID_ENV = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function AuthCard({ children, maxWidth = 480 }) {
@@ -78,6 +78,7 @@ export function Login() {
   const [email, setEmail] = useState('buyer@nola2hand.vn');
   const [password, setPassword] = useState('123456');
   const [busy, setBusy] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState(GOOGLE_CLIENT_ID_ENV);
   const googleBox = useRef(null);
   const googleStarted = useRef(false);
   const nextParam = params.get('next') || '/';
@@ -111,7 +112,20 @@ export function Login() {
   }
 
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || googleStarted.current) return undefined;
+    if (GOOGLE_CLIENT_ID_ENV) return undefined;
+    let live = true;
+    api('/auth/config', { auth: false })
+      .then((result) => {
+        if (live) setGoogleClientId(result.googleClientId || '');
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!googleClientId || googleStarted.current) return undefined;
     let cancelled = false;
     let timer;
     const init = () => {
@@ -122,7 +136,7 @@ export function Login() {
       }
       googleStarted.current = true;
       window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
+        client_id: googleClientId,
         callback: async (response) => {
           try {
             const result = await api('/auth/google', {
@@ -151,7 +165,7 @@ export function Login() {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [googleClientId]);
 
   if (loggedIn) return <Navigate to="/" replace />;
 
@@ -208,7 +222,7 @@ export function Login() {
             {busy ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
         </form>
-        {GOOGLE_CLIENT_ID && (
+        {googleClientId && (
           <div
             id="google-btn"
             ref={googleBox}

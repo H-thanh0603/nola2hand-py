@@ -73,7 +73,7 @@ Phụ trách Google login, địa chỉ, báo cáo shop/người dùng, cảm x�
 
 | ID | Việc | File/khu vực | Ước lượng | Phụ thuộc |
 |---|---|---|---|---|
-| T3.1 | Bật Google login: cấu hình `GOOGLE_CLIENT_ID` + `VITE_GOOGLE_CLIENT_ID`, kiểm thử đăng nhập, tài liệu hoá | `Auth.jsx`, `auth.py`, `.env.example` | 0,5 ngày | Client ID |
+| T3.1 | Bật Google login: cấu hình `GOOGLE_CLIENT_ID` + Authorized JavaScript origin, kiểm thử đăng nhập, tài liệu hoá | `Auth.jsx`, `auth.py`, `.env.example` | 0,5 ngày | Client ID |
 | T3.2 | API + UI sửa địa chỉ (`PATCH /users/me/addresses/:id`) | `users.py`, `Profile.jsx` | 0,5 ngày | — |
 | T3.3 | Mở rộng report target `SHOP`, `USER`: validate, chống trùng, thông báo admin | `reports.py` | 1 ngày | — |
 | T3.4 | UI báo cáo shop/người dùng ở trang shop, chat, hồ sơ; admin xử lý cảnh cáo/khoá | `Shop.jsx`, `Chat.jsx`, `Admin.jsx` | 1 ngày | T3.3 |
