@@ -37,10 +37,18 @@ def submit(prompt: str, images: list[dict], output_dir: str) -> str:
     return str(response.json()["id"])
 
 def status(agent_job_id: str) -> dict:
+    """Hỏi trạng thái job bên sidecar.
+
+    Giữ nguyên mã lỗi thật: 404 nghĩa là sidecar đã quên job (restart, hàng đợi trong
+    RAM) — không bao giờ trả lời nữa nên bên gọi phải kết luận FAILED ngay. Các lỗi
+    khác (503, timeout) chỉ là tạm thời, còn thử lại được.
+    """
     try:
         response = httpx.get(_url(f"/jobs/{agent_job_id}"), timeout=TIMEOUT)
     except httpx.HTTPError as exc:
         raise ApiError(503, "Không hỏi được trạng thái job video") from exc
+    if response.status_code == 404:
+        raise ApiError(404, "Job không còn trên dịch vụ tạo video")
     if response.status_code >= 400:
         raise ApiError(503, "Không hỏi được trạng thái job video")
     return response.json()
