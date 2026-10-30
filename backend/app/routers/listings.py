@@ -36,7 +36,7 @@ from ..validators import http_url
 router = APIRouter()
 
 OFFER_TTL = timedelta(hours=24)
-EDITABLE_STATUSES = ("ACTIVE", "HIDDEN", "DRAFT", "PENDING_REVIEW", "REJECTED")
+EDITABLE_STATUSES = ("ACTIVE", "HIDDEN", "DRAFT", "PENDING_REVIEW")
 Condition = Literal["NEW", "LIKE_NEW", "USED_GOOD", "USED_FAIR", "FOR_PARTS"]
 
 

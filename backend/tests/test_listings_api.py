@@ -1,5 +1,5 @@
 """Test tích hợp listings.js — đăng tin, duyệt, yêu thích, trả giá, đẩy tin."""
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.db import SessionLocal
 from app.models import FeeConfig, Listing, ListingImage, Notification, PriceHistory, SavedSearch, Wallet
@@ -22,6 +22,13 @@ def _create_listing(client, seller, **overrides):
     return response.json()["listing"]
 
 
+def _force_pending(listing_id: int) -> None:
+    """Tin mới nay ACTIVE ngay; đưa về PENDING_REVIEW để test luồng duyệt cũ."""
+    with SessionLocal() as db:
+        db.execute(update(Listing).where(Listing.id == listing_id).values(status="PENDING_REVIEW"))
+        db.commit()
+
+
 def test_tao_tin_can_xac_minh_va_role(make_user, client):
     buyer = make_user()
     response = client.post("/api/v1/listings", headers=buyer["headers"], json=PAYLOAD)
@@ -38,7 +45,7 @@ def test_tao_tin_va_khoi_tao_anh_lich_su_gia(make_user, client):
     seller = make_user(roles=["SELLER"], verified=True)
     listing = _create_listing(client, seller)
 
-    assert listing["status"] == "PENDING_REVIEW"
+    assert listing["status"] == "ACTIVE"
     assert listing["sellerId"] == seller["id"]
     assert listing["price"] == 500000
     assert [image["url"] for image in listing["images"]] == ["https://cdn.example.com/qa-1.jpg"]
@@ -55,6 +62,16 @@ def test_tao_tin_va_khoi_tao_anh_lich_su_gia(make_user, client):
             select(PriceHistory).where(PriceHistory.listingId == listing["id"])
         ).scalars().all()
         assert [row.price for row in history] == [500000]
+
+
+def test_dang_tin_hien_ngay_khong_cho_duyet(make_user, client):
+    seller = make_user(roles=["SELLER"], verified=True)
+    response = client.post("/api/v1/listings", headers=seller["headers"], json=PAYLOAD)
+    assert response.status_code == 201
+    body = response.json()
+    assert body["message"] == "Đăng tin thành công"
+    assert body["listing"]["status"] == "ACTIVE"
+    assert client.get(f"/api/v1/listings/{body['listing']['id']}").status_code == 200
 
 
 def test_thong_so_khong_hop_le(make_user, client):
@@ -82,7 +99,7 @@ def test_thong_so_khong_hop_le(make_user, client):
     assert missing_image.json()["details"][0]["message"] == "Cần ít nhất 1 hình ảnh"
 
 
-def test_sua_tin_dua_ve_cho_duyet_va_ghi_lich_su_gia(make_user, client):
+def test_sua_tin_giu_hien_thi_va_ghi_lich_su_gia(make_user, client):
     seller = make_user(roles=["SELLER"], verified=True)
     listing = _create_listing(client, seller)
 
@@ -95,7 +112,8 @@ def test_sua_tin_dua_ve_cho_duyet_va_ghi_lich_su_gia(make_user, client):
     body = response.json()
     assert body["title"] == "Tai nghe QA đã giảm giá sốc"
     assert body["price"] == 450000
-    assert body["status"] == "PENDING_REVIEW"
+    assert body["status"] == "ACTIVE"
+    assert client.get(f"/api/v1/listings/{listing['id']}").status_code == 200
 
     with SessionLocal() as db:
         prices = db.execute(
@@ -113,26 +131,10 @@ def test_sua_tin_dua_ve_cho_duyet_va_ghi_lich_su_gia(make_user, client):
     assert denied.status_code == 404
 
 
-def test_duyet_tin_va_an_hien_xoa(make_user, client):
-    admin = make_user(roles=["ADMIN_CONTENT"])
+def test_an_hien_xoa_tin_dang_hien(make_user, client):
     seller = make_user(roles=["SELLER"], verified=True)
     listing = _create_listing(client, seller)
-
-    hidden = client.patch(
-        f"/api/v1/listings/{listing['id']}/visibility",
-        headers=seller["headers"],
-        json={"status": "HIDDEN"},
-    )
-    assert hidden.status_code == 400
-    assert hidden.json() == {"message": "Chỉ có thể ẩn hoặc hiện tin đã được duyệt"}
-
-    approved = client.patch(
-        f"/api/v1/listings/admin/{listing['id']}/moderate",
-        headers=admin["headers"],
-        json={"action": "APPROVE"},
-    )
-    assert approved.status_code == 200
-    assert approved.json()["status"] == "ACTIVE"
+    assert listing["status"] == "ACTIVE"
     assert client.get(f"/api/v1/listings/{listing['id']}").status_code == 200
 
     hidden = client.patch(
@@ -142,6 +144,14 @@ def test_duyet_tin_va_an_hien_xoa(make_user, client):
     )
     assert hidden.json() == {"id": listing["id"], "status": "HIDDEN"}
     assert client.get(f"/api/v1/listings/{listing['id']}").status_code == 404
+
+    shown = client.patch(
+        f"/api/v1/listings/{listing['id']}/visibility",
+        headers=seller["headers"],
+        json={"status": "ACTIVE"},
+    )
+    assert shown.json() == {"id": listing["id"], "status": "ACTIVE"}
+    assert client.get(f"/api/v1/listings/{listing['id']}").status_code == 200
 
     deleted = client.delete(f"/api/v1/listings/{listing['id']}", headers=seller["headers"])
     assert deleted.json() == {"message": "Đã xoá tin đăng"}
@@ -153,6 +163,7 @@ def test_tu_choi_tin_va_chong_duyet_lai(make_user, client):
     admin = make_user(roles=["ADMIN_CONTENT"])
     seller = make_user(roles=["SELLER"], verified=True)
     listing = _create_listing(client, seller)
+    _force_pending(listing["id"])
 
     rejected = client.patch(
         f"/api/v1/listings/admin/{listing['id']}/moderate",
@@ -171,8 +182,7 @@ def test_tu_choi_tin_va_chong_duyet_lai(make_user, client):
     assert twice.json() == {"message": "Chỉ duyệt tin đang chờ kiểm duyệt"}
 
 
-def test_duyet_tin_bao_cho_tim_kiem_da_luu(make_user, client):
-    admin = make_user(roles=["ADMIN_CONTENT"])
+def test_dang_tin_bao_cho_tim_kiem_da_luu(make_user, client):
     seller = make_user(roles=["SELLER"], verified=True)
     watcher = make_user()
 
@@ -183,12 +193,6 @@ def test_duyet_tin_bao_cho_tim_kiem_da_luu(make_user, client):
         search_id = search.id
 
     listing = _create_listing(client, seller)
-    approved = client.patch(
-        f"/api/v1/listings/admin/{listing['id']}/moderate",
-        headers=admin["headers"],
-        json={"action": "APPROVE"},
-    )
-    assert approved.status_code == 200
 
     with SessionLocal() as db:
         notifications = db.execute(
@@ -275,11 +279,7 @@ def test_tra_gia(make_user, client):
     seller = make_user(roles=["SELLER"], verified=True)
     buyer = make_user(verified=True)
     listing = _create_listing(client, seller)
-    client.patch(
-        f"/api/v1/listings/admin/{listing['id']}/moderate",
-        headers=make_user(roles=["ADMIN_CONTENT"])["headers"],
-        json={"action": "APPROVE"},
-    )
+    assert listing["status"] == "ACTIVE"
 
     own = client.post(
         f"/api/v1/listings/{listing['id']}/offers",
@@ -354,6 +354,7 @@ def test_day_tin_khi_vi_khong_du(make_user, client):
 def test_danh_sach_cho_duyet_can_quyen_noi_dung(make_user, client):
     seller = make_user(roles=["SELLER"], verified=True)
     listing = _create_listing(client, seller)
+    _force_pending(listing["id"])
 
     assert client.get(
         "/api/v1/listings/admin/pending", headers=seller["headers"]
