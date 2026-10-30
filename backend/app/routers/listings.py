@@ -602,7 +602,7 @@ def listing_detail(listing_id: int, db: Session = Depends(get_db)):
         .where(VideoJob.listingId == listing.id, VideoJob.status == "DONE")
         .order_by(VideoJob.id.desc())
     ).scalars().first()
-    payload["video"] = to_dict(video, exclude=("finalPrompt", "agentJobId")) if video else None
+    payload["video"] = to_dict(video, exclude=("prompt", "finalPrompt", "agentJobId", "error")) if video else None
     db.execute(
         update(Listing)
         .where(Listing.id == listing.id)
