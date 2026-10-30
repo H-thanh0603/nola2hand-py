@@ -515,3 +515,6 @@ class WithdrawalRequest(Base):
     bankAccountId: Mapped[Any] = mapped_column(Integer, name="bankAccountId")
 
 
+
+# Model thêm tay (không sinh từ Prisma) — import để Alembic và Base.metadata thấy.
+from .models_video import VideoJob  # noqa: E402,F401
