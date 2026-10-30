@@ -423,6 +423,14 @@ export default function Listing() {
       <div className="card" style={{ padding: 28 }}>
         <div className="dgrid">
           <div className="gallery">
+            {listing.video?.videoUrl && (
+              <div className="listing-video">
+                <span className="listing-video-label">
+                  <Icon name="video" /> Video quảng bá 10 giây
+                </span>
+                <video src={img(listing.video.videoUrl)} controls playsInline preload="metadata" />
+              </div>
+            )}
             <img
               className="main"
               alt={listing.title}
