@@ -23,6 +23,7 @@ import {
 } from '../constants';
 import { fmtDate, fmtVND, img, onImgError } from '../utils';
 import { VIETNAM_PROVINCES } from '../provinces';
+import SellerVideo from './SellerVideo';
 
 const TABS = [
   ['dashboard', 'Tổng quan', 'grid'],
@@ -30,6 +31,7 @@ const TABS = [
   ['new', 'Đăng tin mới', 'plus'],
   ['offers', 'Trả giá', 'chat'],
   ['insights', 'Phân tích đánh giá', 'star'],
+  ['video', 'Video quảng bá', 'video'],
   ['orders', 'Đơn bán', 'orders'],
 ];
 
@@ -649,6 +651,11 @@ function ListingForm({ listing = null }) {
       .map((value) => value.trim())
       .filter(Boolean);
     if (!links.length) return;
+    const bad = links.find((link) => !/^https?:\/\//i.test(link));
+    if (bad) {
+      toast(`Link ảnh phải bắt đầu bằng http:// hoặc https:// — sai: ${bad}`, 'err');
+      return;
+    }
     setForm((current) => ({
       ...current,
       images: [...new Set([...current.images, ...links])].slice(0, MAX_IMAGES),
@@ -685,7 +692,7 @@ function ListingForm({ listing = null }) {
             </Fragment>
           ))}
         </dl>
-        <p className="muted">Xem trước thông tin; tin vẫn cần admin duyệt.</p>
+        <p className="muted">Xem trước thông tin; tin hiển thị ngay sau khi đăng.</p>
         <button type="button" className="btn btn-line" onClick={closeModal}>
           Đóng
         </button>
@@ -718,10 +725,7 @@ function ListingForm({ listing = null }) {
       } else {
         await api('/listings', { method: 'POST', body });
       }
-      toast(
-        editing ? 'Đã lưu, tin được gửi duyệt lại' : 'Đăng tin thành công, đang chờ duyệt!',
-        'ok',
-      );
+      toast(editing ? 'Đã lưu thay đổi' : 'Đăng tin thành công!', 'ok');
       navigate('/seller/listings');
     } catch (error) {
       toast(error.message, 'err');
@@ -1007,8 +1011,8 @@ function ListingForm({ listing = null }) {
           {saving
             ? 'Đang lưu...'
             : editing
-              ? 'Lưu thay đổi và gửi duyệt lại'
-              : 'Đăng tin (chờ duyệt)'}
+              ? 'Lưu thay đổi'
+              : 'Đăng tin'}
         </button>
       </form>
     </div>
@@ -1358,6 +1362,7 @@ function SellerShell() {
   else if (tab === 'orders') content = <SellerOrders />;
   else if (tab === 'offers') content = <SellerOffers />;
   else if (tab === 'insights') content = <ReviewInsights />;
+  else if (tab === 'video') content = <SellerVideo />;
 
   return (
     <div className="wrap seller-shell">
