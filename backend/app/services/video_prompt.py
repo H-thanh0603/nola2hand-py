@@ -12,12 +12,31 @@ HEADER = "Tạo video 10 giây · tỷ lệ 9:16 dọc"
 FOOTER = "Độ dài đúng 10 giây."
 
 # "30 giây", "15s", "20 sec", "1 phút", "1p". Không nhận "m" để tránh ăn nhầm "cao 5m".
+# Số + đơn vị thời gian có chữ. KHÔNG có nhánh "s"/"p" trần ở đây — "5s" trong "iPhone 5s"
+# và "1080p" là tên sản phẩm/thông số, không phải mốc thời gian.
 _DURATION = re.compile(
-    r"\b\d+(?:[.,]\d+)?\s*(?:giây|giay|seconds?|secs?|s|phút|phut|minutes?|mins?|p)\b",
+    r"\b\d+(?:[.,]\d+)?\s*(?:giây|giay|seconds?|secs?|phút|phut|minutes?|mins?|tiếng|tieng|giờ|gio|hours?|hrs?)\b",
     re.IGNORECASE,
 )
-# "nửa phút", "rưỡi giây" — không có số nhưng vẫn là mốc thời gian.
-_HALF = re.compile(r"\b(?:nửa|nua|rưỡi|ruoi)\s*(?:phút|phut|giây|giay)\b", re.IGNORECASE)
+# "15s", "30 s" chỉ khi đứng riêng: không dính chữ số khác phía trước (1080p, 720p) và
+# không phải tên máy ("iPhone 5s", "Galaxy 6s", "Note 5s").
+_SHORT = re.compile(r"(?<![\w.])\d{1,2}\s*[sp]\b(?![\w.])", re.IGNORECASE)
+_PHONE = re.compile(r"\b(?:iphone|galaxy|note|pixel|redmi|oppo|vivo|xiaomi|realme)\s+\d+\s*[sp]\b", re.IGNORECASE)
+# Số đếm bằng chữ: "một phút", "ba mươi giây", "mười lăm giây", "hai tiếng".
+_WORD_NUM = (
+    r"(?:một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|lăm|mươi|mốt|tư|rưỡi"
+    r"|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty)"
+)
+_DURATION_WORDS = re.compile(
+    rf"\b(?:{_WORD_NUM}\s*){{1,3}}(?:giây|giay|phút|phut|tiếng|tieng|giờ|gio|seconds?|minutes?|hours?)\b",
+    re.IGNORECASE,
+)
+# "nửa phút", "nửa giờ" — không có số nhưng vẫn là mốc thời gian.
+_HALF = re.compile(r"\b(?:nửa|nua|rưỡi|ruoi)\s*(?:phút|phut|giây|giay|giờ|gio|tiếng|tieng)\b", re.IGNORECASE)
+# "video30s" dính liền chữ và số (không có \b ở giữa).
+_GLUED = re.compile(r"(?<=[a-zà-ỹ])\d+\s*[sp]\b", re.IGNORECASE)
+# Dấu câu rác còn lại sau khi bỏ mốc thời gian: ngoặc rỗng, dấu lặp "!!!", " ,"…
+_JUNK = re.compile(r"\(\s*\)|\[\s*\]|([!?.,;:])\1+")
 
 CONDITION_NAMES = {
     "NEW": "mới nguyên hộp",
@@ -46,10 +65,25 @@ def strip_durations(text: str) -> str:
     if not text:
         return ""
     out = _HALF.sub(" ", text)
+    out = _DURATION_WORDS.sub(" ", out)
+    out = _GLUED.sub(" ", out)
+    # Giữ nguyên tên máy ("iPhone 5s") rồi mới xoá "15s" đứng riêng.
+    protected: list[str] = []
+
+    def _keep(match: re.Match) -> str:
+        protected.append(match.group(0))
+        return f"\x00{len(protected) - 1}\x00"
+
+    out = _PHONE.sub(_keep, out)
+    out = _SHORT.sub(" ", out)
     out = _DURATION.sub(" ", out)
+    for index, original in enumerate(protected):
+        out = out.replace(f"\x00{index}\x00", original)
     out = re.sub(r"\s+", " ", out)
     out = re.sub(r"\s+([,.;:!?])", r"\1", out)
-    out = re.sub(r"([,;:])\s*", r"\1 ", out)
+    # Chỉ chuẩn hoá , ; — giữ nguyên dấu ":" để không phá tỷ lệ "9:16".
+    out = re.sub(r"([,;])\s*", r"\1 ", out)
+    out = _JUNK.sub(" ", out)
     out = re.sub(r"\s{2,}", " ", out).strip()
     return out.strip(" ,;:-")
 
