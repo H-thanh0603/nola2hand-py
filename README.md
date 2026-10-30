@@ -59,7 +59,14 @@ sudo apt install ffmpeg          # cần google-chrome nữa
 cd video-agent && npm start      # nghe http://127.0.0.1:48910
 ```
 
-Lần chạy đầu, agent mở Chrome ở profile riêng — đăng nhập Muse một lần, các lần sau giữ session.
+Lần chạy đầu cần đăng nhập Muse **đúng profile của agent** (agent chạy Chrome ẩn, nên đăng nhập
+ở cửa sổ Chrome thường không có tác dụng):
+
+```bash
+cd video-agent && node login.js   # mở cửa sổ Chrome, đăng nhập muse.ai, Ctrl+C khi xong
+```
+
+Kiểm tra: `curl 127.0.0.1:48910/health` → `"museLogin": true`.
 
 Bật trong `backend/.env`:
 

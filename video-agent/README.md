@@ -30,8 +30,19 @@ cd video-agent
 npm start
 ```
 
-Lần đầu: agent mở Chrome ở profile riêng (`video-agent/.profile/`) — đăng nhập Muse một lần,
-profile giữ session cho các lần sau. Agent chờ tối đa 5 phút cho tới khi thấy đã đăng nhập.
+### Đăng nhập Muse (một lần)
+
+Agent chạy Chrome **ẩn ngoài màn hình** và mở `about:blank`, nên đăng nhập ở cửa sổ Chrome khác
+(profile khác) **không có tác dụng**. Phải đăng nhập đúng profile của agent:
+
+```bash
+node login.js          # mở cửa sổ Chrome ở profile của agent
+```
+
+Đăng nhập muse.ai trong cửa sổ đó, khi thấy `✅ Đã đăng nhập Muse` thì Ctrl+C.
+Profile `video-agent/.profile/` giữ session cho các lần sau.
+
+Kiểm tra: `node login.js --check` hoặc `curl 127.0.0.1:48910/health` → `"museLogin": true`.
 
 ## API
 

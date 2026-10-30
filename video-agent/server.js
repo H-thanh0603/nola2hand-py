@@ -51,6 +51,19 @@ function getPage() {
   return page;
 }
 
+// Muse là SPA: mở Chrome xong trang còn đang tải, `login()` hỏi ngay sẽ trả loggedIn:false
+// dù cookie hợp lệ. Hỏi lại tới khi trang dựng xong client chat (tối đa `waitMs`).
+async function waitForLogin(pg, waitMs = 30e3) {
+  const start = Date.now();
+  let last = { loggedIn: false };
+  for (;;) {
+    last = await pg.login().catch((e) => ({ loggedIn: false, error: e.message }));
+    if (last.loggedIn) return last;
+    if (Date.now() - start >= waitMs) return last;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+
 function safeOutputDir(requested) {
   const dir = requested ? path.resolve(OUTPUT_ROOT, path.basename(String(requested))) : path.join(OUTPUT_ROOT, 'default');
   if (!dir.startsWith(OUTPUT_ROOT + path.sep) && dir !== OUTPUT_ROOT) throw new Error('outputDir không hợp lệ');
@@ -62,7 +75,7 @@ async function runJob(job) {
   job.status = 'running';
   try {
     const p = getPage();
-    if (!(await ensureLogin(p, { waitMs: 5 * 60e3 }))) throw new Error('Chưa đăng nhập Muse (mở Chrome của agent và đăng nhập)');
+    if (!(await ensureLogin(p, { waitMs: 5 * 60e3 }))) throw new Error('Chưa đăng nhập Muse — chạy "node login.js" trong video-agent để đăng nhập');
     const saved = await runTask(
       {
         kind: 'video',
@@ -143,11 +156,20 @@ const server = http.createServer(async (req, res) => {
       let login = false;
       let error = '';
       try {
-        login = Boolean((await pg.login())?.loggedIn);
+        login = Boolean((await waitForLogin(pg)).loggedIn);
       } catch (e) {
         error = e.message;
       }
       return send(res, 200, { ok: !error, chrome: Boolean(pg.chrome?.running), museLogin: login, error });
+    }
+
+    // Trang chủ: agent không có UI, trả chỉ dẫn thay vì 404 khó hiểu.
+    if (req.method === 'GET' && p === '/') {
+      return send(res, 200, {
+        service: 'nola-video-agent',
+        endpoints: ['GET /health', 'POST /jobs', 'GET /jobs/:id', 'POST /jobs/:id/cancel'],
+        hint: 'Đăng nhập Muse: node login.js (mở cửa sổ Chrome). Backend bật VIDEO_AGENT_ENABLED=true.',
+      });
     }
 
     if (req.method === 'POST' && p === '/jobs') {
