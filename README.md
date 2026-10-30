@@ -44,6 +44,32 @@ Google login dùng `GOOGLE_CLIENT_ID` trong `backend/.env`; frontend tự lấy 
 Trong Google Cloud Console, thêm `http://localhost:4000` (và `http://localhost:5173` khi chạy Vite)
 vào **Authorized JavaScript origins** của OAuth client.
 
+## Tạo video quảng bá 10 giây (tuỳ chọn)
+
+Người bán vào **Kênh người bán → Video quảng bá** để dựng video dọc 9:16 từ tối đa 3 ảnh sản phẩm.
+Video do [Muse](https://muse.ai) sinh ra qua một sidecar Node chạy cùng máy.
+
+**Giới hạn cố định:** mỗi video đúng **10 giây**, tối đa **3 ảnh**, tổng ảnh ≤ 8 MB.
+Prompt người dùng nhập được làm sạch — mọi mốc `15s / 20 giây / 1 phút` đều bị bỏ, hệ thống luôn ép 10 giây.
+
+Cài đặt một lần:
+
+```bash
+sudo apt install ffmpeg          # cần google-chrome nữa
+cd video-agent && npm start      # nghe http://127.0.0.1:48910
+```
+
+Lần chạy đầu, agent mở Chrome ở profile riêng — đăng nhập Muse một lần, các lần sau giữ session.
+
+Bật trong `backend/.env`:
+
+```
+VIDEO_AGENT_ENABLED=true
+VIDEO_AGENT_URL=http://127.0.0.1:48910
+```
+
+Chi tiết API và cảnh báo: [`video-agent/README.md`](video-agent/README.md).
+
 ## Database dùng chung
 
 Database nằm trên Supabase. Thông tin kết nối và cách vào làm cùng: [`docs/DATABASE.md`](docs/DATABASE.md).
