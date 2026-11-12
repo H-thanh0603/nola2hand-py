@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  
 } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, store } from './api';
@@ -496,4 +497,77 @@ export function Money({ value }) {
 
 export function DateText({ value }) {
   return <>{fmtDate(value)}</>;
+}
+
+export function ReportModal({ targetType, targetId, targetUserId, targetTitle }) {
+  const { closeModal } = useModal();
+  const toast = useToast();
+  const [reason, setReason] = useState('Thông tin sai sự thật');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const result = await api('/reports', {
+        method: 'POST',
+        body: {
+          targetType,
+          targetId,
+          targetUserId,
+          reason,
+          description,
+        },
+      });
+      closeModal();
+      toast(result.message || 'Đã gửi báo cáo, cảm ơn bạn', 'ok');
+    } catch (error) {
+      toast(error.message, 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <h3 style={{ marginBottom: 6 }}>🚩 Báo cáo vi phạm</h3>
+      <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
+        {targetTitle}
+      </p>
+      <div className="form-row">
+        <label className="lbl" htmlFor="report-reason">
+          Lý do
+        </label>
+        <select
+          className="input"
+          id="report-reason"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        >
+          <option>Thông tin sai sự thật</option>
+          <option>Lừa đảo / Chiếm đoạt</option>
+          <option>Hàng giả, hàng nhái</option>
+          <option>Nội dung không phù hợp</option>
+          <option>Khác</option>
+        </select>
+      </div>
+      <div className="form-row">
+        <label className="lbl" htmlFor="report-desc">
+          Mô tả thêm
+        </label>
+        <textarea
+          className="input"
+          id="report-desc"
+          rows="3"
+          maxLength="1000"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+        />
+      </div>
+      <button className="btn btn-green" style={{ width: '100%' }} disabled={busy}>
+        {busy ? 'Đang gửi...' : 'Gửi báo cáo'}
+      </button>
+    </form>
+  );
 }

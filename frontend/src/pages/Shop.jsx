@@ -1,6 +1,8 @@
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useSession } from '../session';
+import { useModal } from '../ui';
+import { ReportModal } from '../ui';
 import {
   Avatar,
   ErrorState,
@@ -18,6 +20,7 @@ export default function Shop() {
   const navigate = useNavigate();
   const toast = useToast();
   const { token } = useSession();
+  const { openModal } = useModal();
 
   const { data: shop, loading, error } = useAsync(
     () =>
@@ -96,9 +99,22 @@ export default function Shop() {
             </span>
           </div>
         </div>
-        <button className="btn btn-dark" onClick={startChat}>
-          💬 Chat với shop
-        </button>
+             <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-dark" onClick={startChat}>
+            💬 Chat với shop
+          </button>
+          <button 
+            className="btn btn-line" 
+            style={{ color: 'var(--red)' }}
+            onClick={() => {
+               if (!token) return navigate('/login');
+               openModal(<ReportModal targetType="SHOP" targetId={shop.id} targetUserId={shop.id} targetTitle={`Shop: ${shop.shopName}`} />);
+            }}
+          >
+            🚩 Báo cáo
+          </button>
+        </div>
+        
       </div>
 
       <h2 style={{ fontSize: 18, marginBottom: 14 }}>

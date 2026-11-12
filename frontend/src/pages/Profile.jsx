@@ -157,10 +157,10 @@ function ProfileView() {
             }}
           >
             <h2>📍 Sổ địa chỉ</h2>
-            <button
+                  <button
               className="btn btn-line btn-sm"
               onClick={() =>
-                openModal(<AddressModal me={me} onDone={state.reload} />)
+                openModal(<AddressForm me={me} onDone={state.reload} />)
               }
             >
               + Thêm
@@ -182,12 +182,25 @@ function ProfileView() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <span className="badge b-gray">{address.label}</span>
+                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <span className="badge b-gray">{address.label}</span>
+                  <button
+                    className="btn btn-line btn-sm"
+                    onClick={() =>
+                      openModal(
+                        <AddressForm me={me} initial={address} onDone={state.reload} />
+                      )
+                    }
+                  >
+                    Sửa
+                  </button>
                   <button
                     className="btn btn-line btn-sm"
                     onClick={() => deleteAddress(address.id)}
                   >
                     Xoá
                   </button>
+                </div>
                 </div>
               </div>
             ))
@@ -287,28 +300,42 @@ function ProfileForm({ me, onSaved }) {
   );
 }
 
-function AddressModal({ me, onDone }) {
+function AddressForm({ me, initial, onDone }) {
   const { closeModal } = useModal();
   const toast = useToast();
-  const [label, setLabel] = useState('Nhà');
-  const [receiver, setReceiver] = useState(me.fullName || '');
-  const [phone, setPhone] = useState(me.phone || '');
-  const [street, setStreet] = useState('');
-  const [city, setCity] = useState('Bình Dương');
-  const [isDefault, setIsDefault] = useState(true);
+  const editing = Boolean(initial);
+  const [label, setLabel] = useState(initial?.label || 'Nhà');
+  const [receiver, setReceiver] = useState(initial?.receiver || me.fullName || '');
+  const [phone, setPhone] = useState(initial?.phone || me.phone || '');
+  const [street, setStreet] = useState(initial?.street || '');
+  const [ward, setWard] = useState(initial?.ward || '');
+  const [district, setDistrict] = useState(initial?.district || '');
+  const [city, setCity] = useState(initial?.city || 'Bình Dương');
+  const [isDefault, setIsDefault] = useState(initial?.isDefault ?? true);
   const [busy, setBusy] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
+    const body = {
+      label: label.trim(),
+      receiver: receiver.trim(),
+      phone: phone.trim(),
+      street: street.trim(),
+      ward: ward.trim() || null,
+      district: district.trim() || null,
+      city: city.trim(),
+      isDefault,
+    };
     try {
-      await api('/users/me/addresses', {
-        method: 'POST',
-        body: { label, receiver, phone, street, city, isDefault },
-      });
+      if (editing) {
+        await api('/users/me/addresses/' + initial.id, { method: 'PATCH', body });
+      } else {
+        await api('/users/me/addresses', { method: 'POST', body });
+      }
       closeModal();
-      toast('Đã thêm địa chỉ', 'ok');
+      toast(editing ? 'Đã cập nhật địa chỉ' : 'Đã thêm địa chỉ', 'ok');
       onDone();
     } catch (error) {
       toast(error.message, 'err');
@@ -319,82 +346,44 @@ function AddressModal({ me, onDone }) {
 
   return (
     <form onSubmit={submit}>
-      <h3 style={{ marginBottom: 14 }}>📍 Thêm địa chỉ</h3>
+      <h3 style={{ marginBottom: 14 }}>
+        📍 {editing ? 'Sửa địa chỉ' : 'Thêm địa chỉ'}
+      </h3>
       <div className="form-row">
-        <label className="lbl" htmlFor="ad-label">
-          Nhãn
-        </label>
-        <input
-          className="input"
-          id="ad-label"
-          required
-          value={label}
-          onChange={(event) => setLabel(event.target.value)}
-        />
+        <label className="lbl" htmlFor="ad-label">Nhãn</label>
+        <input className="input" id="ad-label" required value={label} onChange={(e) => setLabel(e.target.value)} />
       </div>
       <div className="form-row">
-        <label className="lbl" htmlFor="ad-name">
-          Người nhận *
-        </label>
-        <input
-          className="input"
-          id="ad-name"
-          required
-          value={receiver}
-          onChange={(event) => setReceiver(event.target.value)}
-        />
+        <label className="lbl" htmlFor="ad-name">Người nhận *</label>
+        <input className="input" id="ad-name" required value={receiver} onChange={(e) => setReceiver(e.target.value)} />
       </div>
       <div className="form-row">
-        <label className="lbl" htmlFor="ad-phone">
-          SĐT *
-        </label>
-        <input
-          className="input"
-          id="ad-phone"
-          required
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-        />
+        <label className="lbl" htmlFor="ad-phone">SĐT *</label>
+        <input className="input" id="ad-phone" required value={phone} onChange={(e) => setPhone(e.target.value)} />
       </div>
       <div className="form-row">
-        <label className="lbl" htmlFor="ad-street">
-          Địa chỉ *
-        </label>
-        <input
-          className="input"
-          id="ad-street"
-          required
-          placeholder="Số nhà, đường"
-          value={street}
-          onChange={(event) => setStreet(event.target.value)}
-        />
+        <label className="lbl" htmlFor="ad-street">Địa chỉ *</label>
+        <input className="input" id="ad-street" required placeholder="Số nhà, đường" value={street} onChange={(e) => setStreet(e.target.value)} />
+      </div>
+      <div className="row2">
+        <div className="form-row">
+          <label className="lbl" htmlFor="ad-ward">Phường/Xã</label>
+          <input className="input" id="ad-ward" value={ward} onChange={(e) => setWard(e.target.value)} />
+        </div>
+        <div className="form-row">
+          <label className="lbl" htmlFor="ad-district">Quận/Huyện</label>
+          <input className="input" id="ad-district" value={district} onChange={(e) => setDistrict(e.target.value)} />
+        </div>
       </div>
       <div className="form-row">
-        <label className="lbl" htmlFor="ad-city">
-          Tỉnh/Thành *
-        </label>
-        <input
-          className="input"
-          id="ad-city"
-          required
-          value={city}
-          onChange={(event) => setCity(event.target.value)}
-        />
+        <label className="lbl" htmlFor="ad-city">Tỉnh/Thành *</label>
+        <input className="input" id="ad-city" required value={city} onChange={(e) => setCity(e.target.value)} />
       </div>
       <label className="free-filter">
-        <input
-          type="checkbox"
-          checked={isDefault}
-          onChange={(event) => setIsDefault(event.target.checked)}
-        />{' '}
-        Đặt làm địa chỉ mặc định
+        <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} /> Đặt làm mặc định
       </label>
-      <button
-        className="btn btn-green"
-        style={{ width: '100%', marginTop: 12 }}
-        disabled={busy}
-      >
-        {busy ? 'Đang thêm...' : 'Thêm'}
+      <button className="btn btn-green" style={{ width: '100%', marginTop: 12 }} disabled={busy}>
+        {busy ? 'Đang lưu...' : editing ? 'Lưu thay đổi' : 'Thêm'}
       </button>
     </form>
   );

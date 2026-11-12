@@ -11,11 +11,80 @@ import {
   useAsync,
   useToast,
   WorkflowBadge,
+  useModal,
 } from '../ui';
 import { fmtDate, fmtVND, qs } from '../utils';
 
 const FLOW = ['REQUESTED', 'APPROVED', 'SHIPPED', 'RECEIVED', 'REFUNDED'];
 const STATUSES = ['REQUESTED', 'APPROVED', 'SHIPPED', 'RECEIVED', 'REFUNDED', 'REJECTED', 'CANCELLED'];
+
+function ReturnActionModal({ request, action, onDone, close }) {
+  const toast = useToast();
+  const [note, setNote] = useState('');
+  const [tracking, setTracking] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const titles = {
+    APPROVE: 'Duyệt yêu cầu trả hàng',
+    REJECT: 'Từ chối yêu cầu trả hàng',
+    RECEIVE: 'Xác nhận đã nhận hàng trả',
+    SHIP: 'Gửi trả hàng cho người bán',
+    COD_REFUND: 'Ghi nhận hoàn tiền COD',
+    REFUND: 'Hoàn tiền qua ví SafePay',
+    CANCEL: 'Hủy yêu cầu trả hàng',
+  };
+
+  const isShip = action === 'SHIP';
+  const isCod = action === 'COD_REFUND';
+
+  async function submit(e) {
+    e.preventDefault();
+    if ((isShip && !tracking.trim()) || (!isShip && !note.trim())) {
+      toast('Vui lòng nhập thông tin', 'err');
+      return;
+    }
+    setBusy(true);
+    try {
+      const body = { action };
+      if (isShip) body.trackingCode = tracking.trim();
+      else if (isCod) body.codReference = note.trim();
+      else body.note = note.trim();
+
+      await api('/returns/' + request.id, { method: 'PATCH', body });
+      toast('Đã cập nhật tiến trình', 'ok');
+      close();
+      onDone();
+    } catch (error) {
+      toast(error.message, 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <h3 style={{ marginBottom: 14 }}>{titles[action]}</h3>
+      
+      {isShip && (
+        <div className="form-row">
+          <label className="lbl">Mã vận đơn / thông tin bàn giao *</label>
+          <input className="input" value={tracking} onChange={e => setTracking(e.target.value)} required />
+        </div>
+      )}
+
+      {!isShip && (
+        <div className="form-row">
+          <label className="lbl">{isCod ? 'Chứng từ / Hình thức hoàn tiền *' : 'Ghi chú xử lý *'}</label>
+          <textarea className="input" rows={3} value={note} onChange={e => setNote(e.target.value)} required />
+        </div>
+      )}
+
+      <button className="btn btn-green" style={{ width: '100%', marginTop: 10 }} disabled={busy}>
+        {busy ? 'Đang xử lý...' : 'Xác nhận'}
+      </button>
+    </form>
+  );
+}
 
 export function ReturnCard({ request, onChanged }) {
   const { user, hasRole } = useSession();
@@ -27,42 +96,28 @@ export function ReturnCard({ request, onChanged }) {
   const seller = user?.id === order.sellerId;
   const admin = hasRole('ADMIN_FINANCE') && !buyer && !seller;
 
+       const { openModal, closeModal } = useModal();
+
   async function act(action) {
-    const body = { action };
-    if (['APPROVE', 'REJECT', 'RECEIVE', 'REFUND'].includes(action)) {
-      const note = window.prompt('Ghi lý do / tình trạng hàng nhận lại:');
-      if (note === null || !note.trim()) return;
-      body.note = note.trim();
-    }
-    if (action === 'SHIP') {
-      const trackingCode = window.prompt('Mã vận đơn hoặc thông tin bàn giao:');
-      if (trackingCode === null || !trackingCode.trim()) return;
-      body.trackingCode = trackingCode.trim();
-    }
-    if (action === 'COD_REFUND') {
-      const codReference = window.prompt(
-        `Đã hoàn thực tế ${fmtVND(request.codAmount)} COD. Nhập chứng từ / hình thức hoàn:`,
-      );
-      if (codReference === null || !codReference.trim()) return;
-      body.codReference = codReference.trim();
-    }
-    if (action === 'COD_CONFIRM' && !window.confirm(`Bạn đã thực nhận lại ${fmtVND(request.codAmount)} COD ngoài ví?`)) {
+    if (action === 'CANCEL' || action === 'COD_CONFIRM') {
+      if (!window.confirm(action === 'CANCEL' ? 'Hủy yêu cầu trả hàng?' : `Bạn đã nhận lại tiền COD chưa?`)) return;
+      // For these two, we can just call API directly since there's no note needed
+      setBusy(action);
+      try {
+        await api('/returns/' + request.id, { method: 'PATCH', body: { action } });
+        toast('Đã cập nhật', 'ok');
+        onChanged?.();
+      } catch (error) {
+        toast(error.message, 'err');
+      } finally {
+        setBusy('');
+      }
       return;
     }
-    if (action === 'CANCEL' && !window.confirm('Hủy yêu cầu trả hàng?')) return;
 
-    setBusy(action);
-    try {
-      await api('/returns/' + request.id, { method: 'PATCH', body });
-      toast('Đã cập nhật tiến trình', 'ok');
-      onChanged?.();
-    } catch (error) {
-      toast(error.message, 'err');
-    } finally {
-      setBusy('');
-    }
+    // Open modal for the rest
+    openModal(<ReturnActionModal request={request} action={action} onDone={onChanged} close={closeModal} />);
   }
-
   const button = (action, label, green = false) => (
     <button
       key={action}

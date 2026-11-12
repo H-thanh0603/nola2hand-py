@@ -469,18 +469,28 @@ function OrderDetailInner() {
       </button>,
     );
   }
-  if (isBuyer && order.status === 'DELIVERED') {
-    actions.push(
-      <button
-        key="complete"
-        className="btn btn-green"
-        style={{ width: '100%', marginBottom: 10 }}
-        disabled={disabled}
-        onClick={() => changeStatus('COMPLETED')}
-      >
-        ✅ Xác nhận đã nhận hàng
-      </button>,
-    );
+   if (isBuyer && order.status === 'DELIVERED') {
+    if (order.remainingAmount > 0) {
+      actions.push(
+        <div key="complete-blocked" className="card" style={{ padding: 12, background: '#fff5d7', marginBottom: 10 }}>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            ⚠️ Cần thanh toán hoặc người bán xác nhận thu COD trước khi hoàn tất.
+          </p>
+        </div>
+      );
+    } else {
+      actions.push(
+        <button
+          key="complete"
+          className="btn btn-green"
+          style={{ width: '100%', marginBottom: 10 }}
+          disabled={disabled}
+          onClick={() => changeStatus('COMPLETED')}
+        >
+          ✅ Xác nhận đã nhận hàng
+        </button>,
+      );
+    }
   }
   if (isBuyer && ['SHIPPING', 'DELIVERED', 'DEPOSITED', 'CONFIRMED'].includes(order.status)) {
     actions.push(

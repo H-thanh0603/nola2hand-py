@@ -14,6 +14,7 @@ import {
   useAsync,
   useModal,
   useToast,
+  ReportModal,
 } from '../ui';
 
 const validPhone = (value) =>
@@ -220,78 +221,6 @@ function BuyModal({ listing }) {
   );
 }
 
-function ReportModal({ listing }) {
-  const { closeModal } = useModal();
-  const toast = useToast();
-  const [reason, setReason] = useState('Thông tin sai sự thật');
-  const [description, setDescription] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event) {
-    event.preventDefault();
-    setBusy(true);
-    try {
-      const result = await api('/reports', {
-        method: 'POST',
-        body: {
-          targetType: 'LISTING',
-          targetId: listing.id,
-          targetUserId: listing.sellerId,
-          reason,
-          description,
-        },
-      });
-      closeModal();
-      toast(result.message || 'Đã gửi báo cáo, cảm ơn bạn', 'ok');
-    } catch (error) {
-      toast(error.message, 'err');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit}>
-      <h3 style={{ marginBottom: 6 }}>🚩 Báo cáo tin đăng</h3>
-      <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
-        {listing.title}
-      </p>
-      <div className="form-row">
-        <label className="lbl" htmlFor="report-reason">
-          Lý do
-        </label>
-        <select
-          className="input"
-          id="report-reason"
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-        >
-          <option>Thông tin sai sự thật</option>
-          <option>Hàng giả, hàng nhái</option>
-          <option>Giá hoặc nội dung lừa đảo</option>
-          <option>Nội dung không phù hợp</option>
-          <option>Khác</option>
-        </select>
-      </div>
-      <div className="form-row">
-        <label className="lbl" htmlFor="report-desc">
-          Mô tả thêm
-        </label>
-        <textarea
-          className="input"
-          id="report-desc"
-          rows="3"
-          maxLength="1000"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-        />
-      </div>
-      <button className="btn btn-green" style={{ width: '100%' }} disabled={busy}>
-        {busy ? 'Đang gửi...' : 'Gửi báo cáo'}
-      </button>
-    </form>
-  );
-}
 
 export default function Listing() {
   const { id } = useParams();
@@ -322,6 +251,11 @@ export default function Listing() {
       history: Array.isArray(history) ? history : [],
     };
   }, [id]);
+
+  const { data: reviewSummary } = useAsync(
+    () => api('/reviews/listings/' + id + '/summary', { auth: false }).catch(() => null),
+    [id]
+  );
 
   useEffect(() => {
     setImageIndex(0);
@@ -379,7 +313,14 @@ export default function Listing() {
 
   function openReport() {
     if (!requireLogin()) return;
-    openModal(<ReportModal listing={listing} />);
+    openModal(
+      <ReportModal 
+        targetType="LISTING" 
+        targetId={listing.id} 
+        targetUserId={listing.sellerId} 
+        targetTitle={listing.title} 
+      />
+    );
   }
 
   async function addToCart() {
@@ -509,7 +450,75 @@ export default function Listing() {
                 </Link>
               </div>
             </div>
+            
+            {/* T3.5 — Review Sentiment Summary */}
+            {reviewSummary && reviewSummary.totalReviews > 0 && (
+              <div
+                className="card"
+                style={{
+                  padding: 14,
+                  margin: '16px 0',
+                  boxShadow: 'none',
+                  background: '#f8faf9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                }}
+              >
+                <div style={{ textAlign: 'center', minWidth: 80 }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--green-dark)' }}>
+                    {reviewSummary.averageRating}
+                  </div>
+                  <div style={{ color: '#f59e0b', fontSize: 14, letterSpacing: 2 }}>★★★★★</div>
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    {reviewSummary.totalReviews} đánh giá
+                  </div>
+                </div>
+                
+                <div style={{ flex: 1, fontSize: 12.5 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ color: '#16a34a', width: 8, height: 8, borderRadius: '50%', background: '#16a34a' }} />
+                    Tích cực: <b>{reviewSummary.distribution.POSITIVE}</b>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ color: '#d97706', width: 8, height: 8, borderRadius: '50%', background: '#d97706' }} />
+                    Trung lập: <b>{reviewSummary.distribution.NEUTRAL}</b>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={{ color: '#dc2626', width: 8, height: 8, borderRadius: '50%', background: '#dc2626' }} />
+                    Tiêu cực: <b>{reviewSummary.distribution.NEGATIVE}</b>
+                  </div>
 
+                  {/* AI Summary */}
+                  {reviewSummary.aiSummary && (
+                    <div style={{ 
+                      marginTop: 8, 
+                      padding: '8px 12px', 
+                      background: '#fff', 
+                      borderLeft: '3px solid var(--green)', 
+                      borderRadius: '4px',
+                      fontSize: 12,
+                      color: 'var(--ink)'
+                    }}>
+                      <b>✨ Tóm tắt:</b> {reviewSummary.aiSummary}
+                    </div>
+                  )}
+
+                  {/* AI Explanations */}
+                  {reviewSummary.aiReasons && reviewSummary.aiReasons.length > 0 && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--line)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)', marginBottom: 4 }}>🤖 AI phân tích:</div>
+                      {reviewSummary.aiReasons.map((reason, idx) => (
+                        <div key={idx} style={{ fontSize: 11, color: 'var(--mut)', fontStyle: 'italic', marginBottom: 2 }}>
+                          • {reason}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
             <div
               style={{
                 display: 'grid',

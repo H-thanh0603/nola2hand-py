@@ -1,4 +1,4 @@
-"""Trợ lý tìm đồ — port src/routes/assistant.js."""
+"""Trợ lý tìm đồ — Xử lý ngôn ngữ tự nhiên (NLP) cục bộ."""
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select
@@ -8,29 +8,15 @@ from ..db import get_db
 from ..limits import MemoryLimiter
 from ..models import Category, Listing, ListingImage
 from ..serialize import to_dict
-from ..services.ai import json_answer
 from ..services.assistant_search import local_search
 from ..services.catalog import ListingFilters, listing_conditions
 
 router = APIRouter()
 
-INSTRUCTIONS = (
-    "Extract marketplace search filters: q (short product keywords), categoryId (only IDs supplied), "
-    "minPrice/maxPrice (integer VND), city, condition (NEW,LIKE_NEW,USED_GOOD,USED_FAIR,FOR_PARTS), "
-    "deliveryMethod (MEETUP,DELIVERY). JSON object of filters only. Do not invent prices or IDs."
-)
-
-# express-rate-limit mặc định: 10 lượt/phút/IP, thông báo tiếng Anh.
 assistant_limiter = MemoryLimiter(10, 60_000, "Too many requests, please try again later.")
-
 
 def assistant_rate_limit(request: Request) -> None:
     assistant_limiter.check(request.client.host if request.client else "unknown")
-
-
-LOCAL_MESSAGE = "Chế độ tìm kiếm từ khóa; AI chưa cấu hình hoặc đang không khả dụng."
-AI_MESSAGE = "AI chuyển nhu cầu thành bộ lọc; hãy kiểm tra kỹ tin và trao đổi với người bán."
-
 
 class AssistantIn(BaseModel):
     message: str
@@ -45,40 +31,53 @@ class AssistantIn(BaseModel):
             raise ValueError("String must contain at most 500 character(s)")
         return value
 
-
 @router.post("", dependencies=[Depends(assistant_rate_limit)])
 def assistant(payload: AssistantIn, db: Session = Depends(get_db)):
-    categories = [
-        {"id": category_id, "name": name, "slug": slug}
-        for category_id, name, slug in db.execute(
-            select(Category.id, Category.name, Category.slug).order_by(Category.id)
-        ).all()
-    ]
-
     filters = local_search(payload.message)
-    mode = "LOCAL"
-    try:
-        answer = json_answer(INSTRUCTIONS, {"message": payload.message, "categories": categories})
-        if answer:
-            parsed = ListingFilters(**answer)
-            parsed.check_range()
-            if parsed.categoryId and parsed.categoryId not in {row["id"] for row in categories}:
-                raise ValueError("Unknown category")
-            selected = parsed.model_dump(exclude_none=True, exclude=("page", "limit", "sort"))
-            if not selected:
-                raise ValueError("Empty AI filters")
-            filters = selected
-            mode = "AI"
-    except Exception:  # AI lỗi/không cấu hình → giữ bộ lọc từ khóa
-        mode = "LOCAL"
 
-    listings = db.execute(
-        select(Listing)
-        .where(*listing_conditions(ListingFilters(**filters)))
-        .order_by(Listing.createdAt.desc())
-        .limit(8)
-    ).scalars().all()
+    def search_listings(current_filters):
+        return db.execute(
+            select(Listing)
+            .where(*listing_conditions(ListingFilters(**current_filters)))
+            .order_by(Listing.createdAt.desc())
+            .limit(8)
+        ).scalars().all()
 
+    # 1. Tìm kiếm chính xác (mọi điều kiện)
+    listings = search_listings(filters)
+    is_fallback = False
+    display_q = filters.get("q")
+
+    # 2. Nếu không có, thử nới lỏng điều kiện
+    if not listings:
+        is_fallback = True
+        
+        # Thử 1: Bỏ Condition + City, giữ Item + Price
+        step1 = {k: v for k, v in filters.items() if k not in ("city", "condition")}
+        listings = search_listings(step1)
+
+        # Thử 2: Bỏ Price, giữ Item + City
+        if not listings:
+            step2 = {k: v for k, v in filters.items() if k not in ("minPrice", "maxPrice", "condition")}
+            listings = search_listings(step2)
+        
+        # Thử 3: Chỉ giữ Price (để gợi ý các món khác cùng tầm giá)
+        if not listings and (filters.get("minPrice") or filters.get("maxPrice")):
+            step3 = {k: v for k, v in filters.items() if k in ("minPrice", "maxPrice")}
+            listings = search_listings(step3)
+            display_q = None  # Xóa hiển thị tên món vì món đó không tồn tại
+        
+        # Thử 4: Chỉ giữ City
+        if not listings and filters.get("city"):
+            step4 = {"city": filters["city"]}
+            listings = search_listings(step4)
+            display_q = None
+        
+        # Nếu tìm thấy ở bước fallback, cập nhật lại filters hiển thị
+        if listings:
+            filters = {k: v for k, v in filters.items() if k in ("q", "minPrice", "maxPrice")}
+
+    # 3. Lấy ảnh và danh mục
     images: dict[int, ListingImage] = {}
     if listings:
         for image in db.execute(
@@ -87,24 +86,44 @@ def assistant(payload: AssistantIn, db: Session = Depends(get_db)):
             .order_by(ListingImage.sortOrder)
         ).scalars():
             images.setdefault(image.listingId, image)
-    category_map = {row["id"]: row for row in categories}
+            
+    categories = {
+        cat_id: {"id": cat_id, "name": name, "slug": slug}
+        for cat_id, name, slug in db.execute(
+            select(Category.id, Category.name, Category.slug).order_by(Category.id)
+        ).all()
+    }
 
     items = []
     for listing in listings:
         item = to_dict(listing)
-        image = images.get(listing.id)
-        item["images"] = [to_dict(image)] if image is not None else []
-        item["category"] = category_map.get(listing.categoryId)
+        item["images"] = [to_dict(images[listing.id])] if listing.id in images else []
+        item["category"] = categories.get(listing.categoryId)
         items.append(item)
 
+    # 4. Tạo câu trả lời
+    parts = []
+    if display_q and display_q != "đồ cũ":
+        parts.append(f"món **{display_q}**")
+    if filters.get("maxPrice"):
+        parts.append(f"dưới **{filters['maxPrice']:,}đ**".replace(",", "."))
+    if filters.get("minPrice"):
+        parts.append(f"trên **{filters['minPrice']:,}đ**".replace(",", "."))
+
+    understood = ", ".join(parts) if parts else "đồ cũ"
+
+    if items:
+        if is_fallback:
+            message = f"Dạ, em **không tìm thấy {understood}** trên sàn. Nhưng em gợi ý cho bạn **{len(items)} sản phẩm liên quan** đang bán:"
+        else:
+            message = f"Dạ, em hiểu bạn đang tìm {understood}. Em tìm thấy **{len(items)} kết quả** phù hợp nhất:"
+    else:
+        message = f"Dạ, em đã tìm {understood} nhưng hiện tại **chưa có ai đăng bán**. Bạn thử mở rộng ngân sách hoặc đổi từ khóa nhé!"
+
     return {
-        "mode": mode,
+        "mode": "NLP",
         "filters": filters,
         "items": items,
-        "message": (
-            f"Tìm thấy {len(items)} tin đang bán phù hợp. Giá và tình trạng lấy trực tiếp từ tin đăng."
-            if items
-            else "Chưa tìm thấy tin phù hợp. Thử tên sản phẩm ngắn hơn hoặc điều chỉnh ngân sách."
-        ),
-        "note": LOCAL_MESSAGE if mode == "LOCAL" else AI_MESSAGE,
+        "message": message,
+        "note": "Kết quả được lọc trực tiếp từ cơ sở dữ liệu.",
     }

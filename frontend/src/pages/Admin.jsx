@@ -284,46 +284,133 @@ function PendingCard({ listing, onChanged }) {
 function ReportCard({ report, onChanged }) {
   const toast = useToast();
   const [busy, setBusy] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [resolution, setResolution] = useState('');
 
-  async function handle(status) {
-    setBusy(status);
+  async function handle(status, action = 'NONE') {
+    if (status === 'RESOLVED' && !resolution.trim()) {
+      toast('Vui lòng nhập ghi chú xử lý (VD: Đã cảnh cáo)', 'err');
+      return;
+    }
+    
+    setBusy(status + action);
     try {
       await api(`/reports/admin/${report.id}`, {
         method: 'PATCH',
         body: {
           status,
-          resolution: status === 'RESOLVED' ? 'Đã xử lý' : 'Không vi phạm',
+          action,
+          resolution: resolution.trim() || 'Không vi phạm',
         },
       });
-      toast('Đã cập nhật', 'ok');
+      toast('Đã cập nhật báo cáo', 'ok');
       onChanged();
     } catch (error) {
       toast(error.message, 'err');
     } finally {
       setBusy('');
+      setShowForm(false);
     }
   }
 
   const open = ['NEW', 'REVIEWING'].includes(report.status);
+  const targetTypeLabel = {
+    SHOP: 'Gian hàng', USER: 'Người dùng', LISTING: 'Tin đăng', MESSAGE: 'Tin nhắn', COMMENT: 'Bình luận'
+  }[report.targetType] || report.targetType;
+
   return (
-    <article className="sect">
-      <b>{report.reason}</b>{' '}
-      <span className="pill p-bad">{lbl(REPORT_STATUS_NAMES, report.status)}</span>
-      <p style={{ fontSize: 13, margin: '8px 0' }}>{report.description || ''}</p>
-      <p className="muted" style={{ fontSize: 12 }}>
-        Người báo cáo: {report.reporter?.fullName || ''} · {fmtDate(report.createdAt)}
-      </p>
-      {open ? (
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <button className="btn btn-green btn-sm" disabled={!!busy} onClick={() => handle('RESOLVED')}>
-            Đã xử lý
-          </button>
-          <button className="btn btn-line btn-sm" disabled={!!busy} onClick={() => handle('DISMISSED')}>
-            Bỏ qua
-          </button>
+    <article className="sect" style={{ marginBottom: 16 }}>
+      {/* HEADER ROW */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div>
+          <span className="badge b-blue" style={{ marginRight: 8 }}>{targetTypeLabel} #{report.targetId}</span>
+          <b>{report.reason}</b>
         </div>
+        <span className="pill p-bad">{lbl(REPORT_STATUS_NAMES, report.status)}</span>
+      </div>
+      
+      <p style={{ fontSize: 13, margin: '8px 0', color: 'var(--mut)' }}>{report.description || 'Không có mô tả chi tiết'}</p>
+      
+      <p className="muted" style={{ fontSize: 12 }}>
+        Người báo cáo: <b>{report.reporter?.fullName || 'Ẩn danh'}</b> · {fmtDate(report.createdAt)}
+        {report.targetUserId && ` · Đối tượng: ID ${report.targetUserId}`}
+      </p>
+
+      {/* BODY: action buttons or resolved state */}
+      {open ? (
+        <>
+          {/* Notification for admin to act */}
+          {!showForm ? (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button 
+                className="btn btn-green btn-sm" 
+                onClick={() => { setShowForm(true); }}
+              >
+                Xử lý báo cáo
+              </button>
+              <button 
+                className="btn btn-line btn-sm" 
+                disabled={!!busy} 
+                onClick={() => handle('DISMISSED', 'NONE')}
+              >
+                Bỏ qua (không vi phạm)
+              </button>
+            </div>
+          ) : (
+            <div style={{ marginTop: 12, padding: 12, background: 'var(--green-soft)', borderRadius: 8 }}>
+              <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Nhập ghi chú và chọn hành động:</p>
+              <textarea 
+                className="input" 
+                rows={2} 
+                placeholder="Ghi chú xử lý (VD: Đã cảnh cáo người bán)" 
+                value={resolution} 
+                onChange={(e) => setResolution(e.target.value)}
+                style={{ marginBottom: 8 }}
+              />
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button 
+                  className="btn btn-green btn-sm" 
+                  disabled={busy !== ''} 
+                  onClick={() => handle('RESOLVED', 'WARN_USER')}
+                >
+                  {busy === 'RESOLVEDWARN_USER' ? 'Đang xử lý...' : 'Cảnh cáo'}
+                </button>
+                {report.targetUserId && (
+                  <button 
+                    className="btn btn-red btn-sm" 
+                    disabled={busy !== ''} 
+                    onClick={() => handle('RESOLVED', 'BAN_PERMANENT')}
+                  >
+                    {busy === 'RESOLVEDBAN_PERMANENT' ? 'Đang xử lý...' : 'Khóa vĩnh viễn'}
+                  </button>
+                )}
+                {report.targetType === 'LISTING' && (
+                  <button 
+                    className="btn btn-line btn-sm" 
+                    disabled={busy !== ''} 
+                    onClick={() => handle('RESOLVED', 'REMOVE_CONTENT')}
+                  >
+                    {busy === 'RESOLVEDREMOVE_CONTENT' ? 'Đang xử lý...' : 'Gỡ nội dung'}
+                  </button>
+                )}
+                <button 
+                  className="btn btn-line btn-sm" 
+                  disabled={busy !== ''} 
+                  onClick={() => setShowForm(false)}
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
-        <p>{report.resolution || ''}</p>
+        <div style={{ padding: 8, background: '#f6f9f7', borderRadius: 6, marginTop: 12 }}>
+          <p style={{ fontSize: 13 }}>
+            <b>Trạng thái:</b> {lbl(REPORT_STATUS_NAMES, report.status)} 
+            {report.resolution && <> · <b>Ghi chú:</b> {report.resolution}</>}
+          </p>
+        </div>
       )}
     </article>
   );
@@ -458,32 +545,59 @@ function WithdrawalCard({ withdrawal: w, onChanged }) {
   );
 }
 
-function ReturnCard({ request: r, onChanged }) {
+function AdminReturnActionModal({ request, action, onDone, close }) {
   const toast = useToast();
-  const [busy, setBusy] = useState('');
-  const order = r.order || {};
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  async function act(action) {
-    const promptText =
-      action === 'RECEIVE'
-        ? 'Ghi nhận tình trạng hàng đã nhận lại:'
-        : action === 'REFUND'
-          ? 'Ghi lý do hoàn tiền SafePay:'
-          : action === 'APPROVE'
-            ? 'Ghi chú duyệt trả hàng:'
-            : 'Lý do từ chối trả hàng:';
-    const note = window.prompt(promptText);
-    if (!note?.trim()) return;
-    setBusy(action);
+  const titles = {
+    APPROVE: 'Duyệt yêu cầu trả hàng',
+    REJECT: 'Từ chối yêu cầu trả hàng',
+    RECEIVE: 'Xác nhận đã nhận hàng trả',
+    REFUND: 'Hoàn tiền qua ví SafePay',
+  };
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!note.trim()) {
+      toast('Vui lòng nhập thông tin', 'err');
+      return;
+    }
+    setBusy(true);
     try {
-      await api(`/returns/${r.id}`, { method: 'PATCH', body: { action, note: note.trim() } });
+      await api(`/returns/${request.id}`, { method: 'PATCH', body: { action, note: note.trim() } });
       toast('Đã cập nhật tiến trình trả hàng', 'ok');
-      onChanged();
+      close();
+      onDone();
     } catch (error) {
       toast(error.message, 'err');
     } finally {
-      setBusy('');
+      setBusy(false);
     }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <h3 style={{ marginBottom: 14 }}>{titles[action] || 'Xử lý trả hàng'}</h3>
+      <div className="form-row">
+        <label className="lbl">Ghi chú xử lý *</label>
+        <textarea className="input" rows={3} value={note} onChange={e => setNote(e.target.value)} required />
+      </div>
+      <button className="btn btn-green" style={{ width: '100%', marginTop: 10 }} disabled={busy}>
+        {busy ? 'Đang xử lý...' : 'Xác nhận'}
+      </button>
+    </form>
+  );
+}
+
+function ReturnCard({ request: r, onChanged }) {
+  const toast = useToast();
+  const { openModal, closeModal } = useModal();
+  const [busy, setBusy] = useState('');
+  const order = r.order || {};
+
+  function act(action) {
+    openModal(<AdminReturnActionModal request={r} action={action} onDone={onChanged} close={closeModal} />);
   }
 
   return (
