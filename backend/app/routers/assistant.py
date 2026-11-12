@@ -1,4 +1,4 @@
-"""Trợ lý tìm đồ — Xử lý ngôn ngữ tự nhiên (NLP) cục bộ."""
+"""Trợ lý tìm đồ — Fuzzy Search & Ranking."""
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select
@@ -9,7 +9,7 @@ from ..limits import MemoryLimiter
 from ..models import Category, Listing, ListingImage
 from ..serialize import to_dict
 from ..services.assistant_search import local_search
-from ..services.catalog import ListingFilters, listing_conditions
+from ..services.search_engine import smart_match
 
 router = APIRouter()
 
@@ -34,68 +34,57 @@ class AssistantIn(BaseModel):
 @router.post("", dependencies=[Depends(assistant_rate_limit)])
 def assistant(payload: AssistantIn, db: Session = Depends(get_db)):
     filters = local_search(payload.message)
+    query_text = filters.get("q", "")
 
-    def search_listings(current_filters):
-        return db.execute(
-            select(Listing)
-            .where(*listing_conditions(ListingFilters(**current_filters)))
-            .order_by(Listing.createdAt.desc())
-            .limit(8)
-        ).scalars().all()
+    # Lấy tất cả tin ACTIVE
+    all_listings = db.execute(
+        select(Listing).where(Listing.status == "ACTIVE").order_by(Listing.createdAt.desc()).limit(500)
+    ).scalars().all()
 
-    # 1. Tìm kiếm chính xác (mọi điều kiện)
-    listings = search_listings(filters)
+    def get_top_matches(use_filters=True):
+        scored = []
+        for listing in all_listings:
+            if use_filters:
+                if filters.get("minPrice") and listing.price < filters["minPrice"]: continue
+                if filters.get("maxPrice") and listing.price > filters["maxPrice"]: continue
+                if filters.get("city") and filters["city"].lower() not in (listing.city or "").lower(): continue
+
+            score = smart_match(query_text, listing.title, listing.description or "")
+            
+            # Chỉ lấy những tin có điểm >= 40
+            if score >= 40:
+                scored.append({"listing": listing, "score": score})
+        
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        return [item["listing"] for item in scored[:8]]
+
+    # 1. Tìm kiếm chính xác
+    top_listings = get_top_matches(use_filters=True)
     is_fallback = False
-    display_q = filters.get("q")
 
-    # 2. Nếu không có, thử nới lỏng điều kiện
-    if not listings:
+    # 2. Nếu không tìm thấy, thử bỏ bộ lọc Giá / Khu vực
+    if not top_listings and query_text:
         is_fallback = True
-        
-        # Thử 1: Bỏ Condition + City, giữ Item + Price
-        step1 = {k: v for k, v in filters.items() if k not in ("city", "condition")}
-        listings = search_listings(step1)
-
-        # Thử 2: Bỏ Price, giữ Item + City
-        if not listings:
-            step2 = {k: v for k, v in filters.items() if k not in ("minPrice", "maxPrice", "condition")}
-            listings = search_listings(step2)
-        
-        # Thử 3: Chỉ giữ Price (để gợi ý các món khác cùng tầm giá)
-        if not listings and (filters.get("minPrice") or filters.get("maxPrice")):
-            step3 = {k: v for k, v in filters.items() if k in ("minPrice", "maxPrice")}
-            listings = search_listings(step3)
-            display_q = None  # Xóa hiển thị tên món vì món đó không tồn tại
-        
-        # Thử 4: Chỉ giữ City
-        if not listings and filters.get("city"):
-            step4 = {"city": filters["city"]}
-            listings = search_listings(step4)
-            display_q = None
-        
-        # Nếu tìm thấy ở bước fallback, cập nhật lại filters hiển thị
-        if listings:
-            filters = {k: v for k, v in filters.items() if k in ("q", "minPrice", "maxPrice")}
+        top_listings = get_top_matches(use_filters=False)
+        filters.pop("minPrice", None)
+        filters.pop("maxPrice", None)
+        filters.pop("city", None)
 
     # 3. Lấy ảnh và danh mục
     images: dict[int, ListingImage] = {}
-    if listings:
+    if top_listings:
         for image in db.execute(
-            select(ListingImage)
-            .where(ListingImage.listingId.in_([listing.id for listing in listings]))
-            .order_by(ListingImage.sortOrder)
+            select(ListingImage).where(ListingImage.listingId.in_([l.id for l in top_listings])).order_by(ListingImage.sortOrder)
         ).scalars():
             images.setdefault(image.listingId, image)
             
     categories = {
-        cat_id: {"id": cat_id, "name": name, "slug": slug}
-        for cat_id, name, slug in db.execute(
-            select(Category.id, Category.name, Category.slug).order_by(Category.id)
-        ).all()
+        c_id: {"id": c_id, "name": n, "slug": s}
+        for c_id, n, s in db.execute(select(Category.id, Category.name, Category.slug)).all()
     }
 
     items = []
-    for listing in listings:
+    for listing in top_listings:
         item = to_dict(listing)
         item["images"] = [to_dict(images[listing.id])] if listing.id in images else []
         item["category"] = categories.get(listing.categoryId)
@@ -103,27 +92,25 @@ def assistant(payload: AssistantIn, db: Session = Depends(get_db)):
 
     # 4. Tạo câu trả lời
     parts = []
-    if display_q and display_q != "đồ cũ":
-        parts.append(f"món **{display_q}**")
-    if filters.get("maxPrice"):
-        parts.append(f"dưới **{filters['maxPrice']:,}đ**".replace(",", "."))
-    if filters.get("minPrice"):
-        parts.append(f"trên **{filters['minPrice']:,}đ**".replace(",", "."))
+    if query_text: parts.append(f"món **{query_text}**")
+    if filters.get("maxPrice"): parts.append(f"dưới **{filters['maxPrice']:,}đ**".replace(",", "."))
+    if filters.get("minPrice"): parts.append(f"trên **{filters['minPrice']:,}đ**".replace(",", "."))
+    if filters.get("city"): parts.append(f"tại **{filters['city']}**")
 
     understood = ", ".join(parts) if parts else "đồ cũ"
 
     if items:
         if is_fallback:
-            message = f"Dạ, em **không tìm thấy {understood}** trên sàn. Nhưng em gợi ý cho bạn **{len(items)} sản phẩm liên quan** đang bán:"
+            message = f"Dạ, em **không tìm thấy chính xác** {understood}. Nhưng em gợi ý cho bạn **{len(items)} sản phẩm tương tự** đang bán:"
         else:
             message = f"Dạ, em hiểu bạn đang tìm {understood}. Em tìm thấy **{len(items)} kết quả** phù hợp nhất:"
     else:
-        message = f"Dạ, em đã tìm {understood} nhưng hiện tại **chưa có ai đăng bán**. Bạn thử mở rộng ngân sách hoặc đổi từ khóa nhé!"
+        message = f"Dạ, em đã tìm {understood} nhưng hiện tại **chưa có ai đăng bán** món này."
 
     return {
         "mode": "NLP",
         "filters": filters,
         "items": items,
         "message": message,
-        "note": "Kết quả được lọc trực tiếp từ cơ sở dữ liệu.",
+        "note": "Kết quả được xếp hạng bằng thuật toán Fuzzy Search thông minh.",
     }
