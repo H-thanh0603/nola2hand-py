@@ -148,6 +148,22 @@ def test_chat_gui_tin_hoi_thoai_va_chan(make_user, client):
     ).status_code == 201
 
 
+def test_thong_bao_tin_nhan_hoi_san_pham_co_link_hoi_thoai(make_user, client):
+    buyer = make_user()
+    seller = make_user(["SELLER"], verified=True)
+    listing = _listing(client, seller)
+
+    sent = client.post(
+        "/api/v1/chat/messages",
+        headers=buyer["headers"],
+        json={"receiverId": seller["id"], "body": "Còn hàng không?", "listingId": listing["id"]},
+    )
+    assert sent.status_code == 201, sent.text
+
+    inbox = client.get("/api/v1/notifications", headers=seller["headers"]).json()
+    assert inbox["data"][0]["data"] == {"senderId": buyer["id"], "listingId": listing["id"]}
+
+
 def test_thong_bao_doc_tung_cai_va_doc_tat_ca(make_user, client):
     owner = make_user()
     other = make_user()

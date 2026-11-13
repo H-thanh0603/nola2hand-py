@@ -33,8 +33,12 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(data.message || 'Lỗi ' + response.status);
+    // hiện luôn lý do cụ thể từ backend thay vì chỉ "Dữ liệu không hợp lệ"
+    const detail = Array.isArray(data.details) ? data.details[0]?.message : null;
+    const message = data.message || 'Lỗi ' + response.status;
+    const error = new Error(detail && detail !== message ? `${message}: ${detail}` : message);
     error.status = response.status;
+    error.details = data.details;
     throw error;
   }
   return data;

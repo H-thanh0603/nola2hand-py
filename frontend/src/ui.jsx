@@ -67,6 +67,8 @@ const ICON_PATHS = {
   filter: '<path d="M3 6h18M6 12h12M9 18h6"/>',
   eye:
     '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  video:
+    '<rect x="2" y="6" width="14" height="12" rx="3"/><path d="m16 11 6-3v8l-6-3Z"/>',
 };
 
 export function Icon({ name = 'grid', className = '' }) {

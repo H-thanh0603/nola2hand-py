@@ -45,6 +45,7 @@ from app.models import (
     Wallet,
     WalletTransaction,
     WithdrawalRequest,
+    VideoJob,
 )
 
 MAIL_DIR = Path(__file__).resolve().parents[1] / ".local" / "mail"
@@ -144,6 +145,7 @@ def make_user(client):
         )
 
         db.execute(delete(PriceOffer).where(PriceOffer.listingId.in_(listing_ids)))
+        db.execute(delete(VideoJob).where(VideoJob.sellerId.in_(created)))
         db.execute(delete(SavedSearchMatch).where(SavedSearchMatch.listingId.in_(listing_ids)))
         db.execute(delete(PriceHistory).where(PriceHistory.listingId.in_(listing_ids)))
         db.execute(delete(ListingImage).where(ListingImage.listingId.in_(listing_ids)))

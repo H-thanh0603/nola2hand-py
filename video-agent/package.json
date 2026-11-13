@@ -1,0 +1,14 @@
+{
+  "name": "nola-video-agent",
+  "version": "1.0.0",
+  "description": "Sidecar tạo video quảng bá 10 giây qua Muse cho nola2hand",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

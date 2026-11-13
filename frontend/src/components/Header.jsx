@@ -8,15 +8,13 @@ import { fmtVND, img, onImgError } from '../utils';
 
 export function Topbar() {
   const { user, hasRole } = useSession();
-  const location = useLocation();
-  const isAdmin = location.pathname.startsWith('/admin');
   return (
     <div id="topbar">
       <div>Mỗi món đồ, thêm một hành trình.</div>
       <div>
         <Link to="/orders">Đơn mua</Link>
         <Link to="/returns">Trả hàng</Link>
-        {!isAdmin && <Link to="/seller">Kênh người bán</Link>}
+        <Link to="/seller">Kênh người bán</Link>
         {hasRole('ADMIN_FINANCE', 'ADMIN_CONTENT') && <Link to="/admin">Quản trị</Link>}
         {!user && <Link to="/register">Đăng ký</Link>}
       </div>
@@ -28,7 +26,6 @@ export function Header() {
   const categories = useCategories();
   const { user, hasRole, clearSession } = useSession();
   const location = useLocation();
-  const isAdmin = location.pathname.startsWith('/admin');
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -278,7 +275,7 @@ export function Header() {
               <Link to="/chat" onClick={() => setMenuOpen(false)}>💬 Tin nhắn</Link>
               <Link to="/notifications" onClick={() => setMenuOpen(false)}>🔔 Thông báo</Link>
               <Link to="/favorites" onClick={() => setMenuOpen(false)}>🤍 Tin đã lưu</Link>
-              {!isAdmin && <Link to="/seller" onClick={() => setMenuOpen(false)}>🏪 Kênh người bán</Link>}
+              <Link to="/seller" onClick={() => setMenuOpen(false)}>🏪 Kênh người bán</Link>
               {hasRole('ADMIN_FINANCE', 'ADMIN_CONTENT') && (
                 <Link to="/admin" onClick={() => setMenuOpen(false)}>🛠️ Trang quản trị</Link>
               )}

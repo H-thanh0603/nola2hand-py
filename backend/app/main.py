@@ -42,6 +42,7 @@ from .routers import upload as upload_router
 from .routers import reviews as reviews_router
 from .routers import shops as shops_router
 from .routers import users as users_router
+from .routers import videos as videos_router
 from .routers import wallet as wallet_router
 from .routers.upload import UPLOAD_DIR
 from .services.reservations import expire_reservations
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     app.include_router(upload_router.router, prefix="/api/v1/upload")
     app.include_router(promos_router.router, prefix="/api/v1/promos")
     app.include_router(banners_router.router, prefix="/api/v1/banners")
+    app.include_router(videos_router.router, prefix="/api/v1/video-jobs")
 
     # Ảnh sản phẩm công khai — như app.use('/uploads', express.static(...)) của bản Node.
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

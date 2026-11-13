@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = ""
     ai_review_analysis: bool = False
+    video_agent_url: str = "http://127.0.0.1:48910"
+    video_agent_enabled: bool = False
 
     @field_validator("database_url")
     @classmethod

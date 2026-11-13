@@ -170,7 +170,7 @@ def send_message(
         "SYSTEM",
         f"Tin nhắn mới từ {sender.fullName}",
         payload.body[:120],
-        {"senderId": user.id},
+        {"senderId": user.id, **({"listingId": payload.listingId} if payload.listingId else {})},
     )
     db.commit()
 

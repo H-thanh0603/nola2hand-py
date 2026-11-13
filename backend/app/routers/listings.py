@@ -22,6 +22,7 @@ from ..models import (
     PriceOffer,
     SellerProfile,
     User,
+    VideoJob,
 )
 from ..pagination import paged_result, paginate
 from ..quota import account_limit
@@ -35,7 +36,7 @@ from ..validators import http_url
 router = APIRouter()
 
 OFFER_TTL = timedelta(hours=24)
-EDITABLE_STATUSES = ("ACTIVE", "HIDDEN", "DRAFT", "PENDING_REVIEW", "REJECTED")
+EDITABLE_STATUSES = ("ACTIVE", "HIDDEN", "DRAFT", "PENDING_REVIEW")
 Condition = Literal["NEW", "LIKE_NEW", "USED_GOOD", "USED_FAIR", "FOR_PARTS"]
 
 
@@ -595,6 +596,13 @@ def listing_detail(listing_id: int, db: Session = Depends(get_db)):
         raise ApiError(404, "Tin đăng không tồn tại")
 
     payload = serialize_listing(db, listing)
+    # Video quảng bá mới nhất đã dựng xong — trang sản phẩm hiện kèm (null nếu chưa có).
+    video = db.execute(
+        select(VideoJob)
+        .where(VideoJob.listingId == listing.id, VideoJob.status == "DONE")
+        .order_by(VideoJob.id.desc())
+    ).scalars().first()
+    payload["video"] = to_dict(video, exclude=("prompt", "finalPrompt", "agentJobId", "error")) if video else None
     db.execute(
         update(Listing)
         .where(Listing.id == listing.id)
@@ -623,17 +631,18 @@ def create_listing(
         raise ApiError(400, "Danh mục không tồn tại")
     validate_specifications(category.slug, data["specifications"])
 
-    listing = Listing(**data, sellerId=user.id, status="PENDING_REVIEW", updatedAt=now())
+    listing = Listing(**data, sellerId=user.id, status="ACTIVE", updatedAt=now())
     db.add(listing)
     db.flush()
     db.add_all(
         [ListingImage(listingId=listing.id, url=url, sortOrder=index) for index, url in enumerate(images)]
     )
     db.add(PriceHistory(listingId=listing.id, price=data["price"]))
+    notify_matching_searches(db, listing.id)
     db.commit()
 
     return {
-        "message": "Đăng tin thành công, đang chờ kiểm duyệt",
+        "message": "Đăng tin thành công",
         "listing": serialize_listing(db, listing),
     }
 
@@ -649,6 +658,7 @@ def update_listing(
     if listing is None or listing.sellerId != user.id:
         raise ApiError(404, "Không tìm thấy tin đăng")
     original_price = listing.price  # update() bên dưới đồng bộ luôn object trong session
+    was_active = listing.status == "ACTIVE"
 
     data = payload.model_dump(exclude_unset=True)
     images = data.pop("images", None)
@@ -676,10 +686,14 @@ def update_listing(
             Listing.status.in_(EDITABLE_STATUSES),
             Listing.updatedAt == listing.updatedAt,  # chống ghi đè khi tin vừa đổi
         )
-        .values(**data, status="PENDING_REVIEW", updatedAt=now())
+        .values(**data, status="ACTIVE", updatedAt=now())
     )
     if changed.rowcount == 0:
         raise ApiError(409, "Tin đang được giữ/bán hết hoặc vừa thay đổi, không thể sửa")
+
+    if not was_active:  # tin được đăng lại ngay, báo cho tìm kiếm đã lưu
+        db.flush()
+        notify_matching_searches(db, listing.id)
 
     if "price" in data and data["price"] != original_price:
         db.add(PriceHistory(listingId=listing.id, price=data["price"]))

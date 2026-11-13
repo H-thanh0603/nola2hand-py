@@ -172,6 +172,7 @@ Ký hiệu: ✅ có và dùng được; ⚠️ có nhưng cần cấu hình ho�
 | 28 | Trang chủ: sản phẩm mới nhất | ❌ | Có sort `newest` trong catalog, chưa có section riêng trên trang chủ |
 | 29 | Trang chủ: sản phẩm xem nhiều nhất | ❌ | Trang chủ mặc định ưu tiên boost + mới, chưa có section "xem nhiều" |
 | 30 | Danh sách sản phẩm gợi ý | ✅ | Section "Gợi ý cho bạn" |
+| 31 | Video quảng bá sản phẩm 10 giây | ⚠️ | Seller tạo từ 3 ảnh qua `video-agent` (Muse). Bật `VIDEO_AGENT_ENABLED=true` + chạy sidecar. Video hiện trên trang sản phẩm |
 
 ### 7.2 Nhóm chức năng đã có
 
@@ -207,10 +208,11 @@ Tài chính: tổng quan, biểu đồ cột/tròn, đơn hàng, giao dịch, ph
 
 ### 8.2 Tin đăng
 
-`DRAFT → PENDING_REVIEW → ACTIVE → RESERVED → SOLD_OUT`
+`DRAFT → ACTIVE → RESERVED → SOLD_OUT` (tin cũ có thể ở `PENDING_REVIEW`/`REJECTED`)
 
-- Seller đăng tin → `PENDING_REVIEW`.
-- Admin nội dung duyệt → `ACTIVE` hoặc từ chối kèm lý do.
+- Seller đăng tin → `ACTIVE` ngay, hiển thị công khai, không chờ duyệt.
+- Sửa tin cũng giữ `ACTIVE` (trừ tin đang giữ/đã bán).
+- Admin nội dung vẫn xử lý được các tin cũ đang `PENDING_REVIEW` → duyệt hoặc từ chối kèm lý do.
 - Có đơn → `RESERVED`; hoàn tất → `SOLD_OUT`.
 - Seller có thể ẩn/hiện, boost, xoá mềm.
 

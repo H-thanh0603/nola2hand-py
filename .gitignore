@@ -21,3 +21,9 @@ uploads/
 
 # Ghi chú làm việc, không commit
 PLAN.md
+
+# video-agent
+video-agent/node_modules/
+video-agent/.profile/
+video-agent/.output/
+*.mp4

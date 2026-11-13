@@ -77,7 +77,7 @@ export default function SavedSearches() {
     <div className="wrap">
       <h1>🔔 Tìm kiếm đang theo dõi</h1>
       <p className="muted">
-        Thông báo trong ứng dụng khi tin mới được duyệt; không gửi lại cùng một
+        Thông báo trong ứng dụng khi có tin mới khớp; không gửi lại cùng một
         tin.
       </p>
 
