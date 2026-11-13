@@ -25,7 +25,6 @@ TOPICS = (
     ("Thái độ / phản hồi", re.compile(r"thái độ|không phản hồi|không trả lời", re.IGNORECASE)),
 )
 
-
 class ReviewIn(BaseModel):
     rating: int
     comment: str | None = None
@@ -49,7 +48,6 @@ class ReviewIn(BaseModel):
             raise ValueError("String must contain at most 1000 character(s)")
         return value
 
-
 class ReplyIn(BaseModel):
     reply: str
 
@@ -60,6 +58,32 @@ class ReplyIn(BaseModel):
         if not 1 <= len(value) <= 1000:
             raise ValueError("String must contain at least 1 character(s)" if not value else "String must contain at most 1000 character(s)")
         return value
+
+
+def _generate_review_summary(reviews_list: list[dict]) -> str:
+    """Tạo câu tóm tắt tự nhiên dựa trên từ khóa trong đánh giá."""
+    positives, negatives = [], []
+    positive_keywords = {"tốt", "nhanh", "uy tín", "đẹp", "xịn", "chất lượng", "hài lòng"}
+    negative_keywords = {"lỗi", "chậm", "tệ", "kém", "hỏng", "lừa đảo", "thất vọng"}
+
+    for r in reviews_list:
+        comment = (r.get("comment") or "").lower()
+        for kw in positive_keywords:
+            if kw in comment and kw not in positives: positives.append(kw)
+        for kw in negative_keywords:
+            if kw in comment and kw not in negatives: negatives.append(kw)
+
+    pos_text = ", ".join(positives[:3])
+    neg_text = ", ".join(negatives[:3])
+
+    if pos_text and neg_text:
+        return f"Người mua khen ngợi về {pos_text}, nhưng cũng có ý kiến phàn nàn về {neg_text}."
+    elif pos_text:
+        return f"Đa số người mua rất hài lòng, đặc biệt khen ngợi về {pos_text}."
+    elif neg_text:
+        return f"Cần lưu ý: Người mua phản ánh khá nhiều về {neg_text}."
+    else:
+        return "Chưa có đủ đánh giá chi tiết để tóm tắt."
 
 
 @router.post("/orders/{order_id}/reviews", status_code=201)
@@ -282,6 +306,8 @@ def review_insights(
         for comment, rating, sentiment, source in rows
     ]
 
+    ai_summary = _generate_review_summary(reviews)
+
     return {
         "sampleSize": len(reviews),
         "averageRating": sum(review["rating"] for review in reviews) / len(reviews) if reviews else 0,
@@ -300,4 +326,52 @@ def review_insights(
             }
             for name, pattern in TOPICS
         ],
+        "aiSummary": ai_summary, # <--- NEW
+    }
+
+
+@router.get("/listings/{listing_id}/summary")
+def listing_review_summary(listing_id: int, db: Session = Depends(get_db)):
+    reviews = db.execute(
+        select(Review.sentiment, Review.sentimentSource, Review.rating, Review.comment)
+        .where(Review.listingId == listing_id)
+    ).all()
+
+    if not reviews:
+        return {
+            "totalReviews": 0,
+            "averageRating": 0,
+            "distribution": {"POSITIVE": 0, "NEUTRAL": 0, "NEGATIVE": 0},
+            "aiReasons": [],
+            "aiSummary": ""
+        }
+
+    sentiments = {"POSITIVE": 0, "NEUTRAL": 0, "NEGATIVE": 0}
+    total_rating = 0
+    reasons = []
+
+    for sentiment, source, rating, comment in reviews:
+        total_rating += rating
+        # Re-run local AI to get the reason (in case it wasn't stored)
+        analysis = local_sentiment(comment, rating)
+        final_sentiment = analysis["sentiment"]
+        
+        if final_sentiment in sentiments:
+            sentiments[final_sentiment] += 1
+            
+        # If the reason is interesting (has keywords), save it for the UI
+        if analysis.get("reason") and analysis["reason"] != "Không có từ khóa":
+            reasons.append(f"\"{comment[:30]}...\" → {analysis['reason']}")
+
+    ai_summary = _generate_review_summary([
+        {"comment": comment, "sentiment": sentiment} 
+        for sentiment, source, rating, comment in reviews
+    ])
+
+    return {
+        "totalReviews": len(reviews),
+        "averageRating": round(total_rating / len(reviews), 1),
+        "distribution": sentiments,
+        "aiReasons": reasons[:3],
+        "aiSummary": ai_summary,
     }

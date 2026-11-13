@@ -39,35 +39,79 @@ function ReviewInsights() {
   const { data, error, loading } = useAsync(() => api('/reviews/insights'), []);
   if (loading) return <Loading />;
   if (error) return <ErrorState error={error} />;
+
   const sentiments = {
-    POSITIVE: 'Tích cực',
-    NEUTRAL: 'Trung lập',
-    NEGATIVE: 'Tiêu cực',
+    POSITIVE: { label: 'Tích cực', color: '#16a34a', bg: '#dcfce7' },
+    NEUTRAL: { label: 'Trung lập', color: '#d97706', bg: '#fef3c7' },
+    NEGATIVE: { label: 'Tiêu cực', color: '#dc2626', bg: '#fee2e2' },
   };
+
+  const total = data.sampleSize || 0;
+
   return (
     <section className="sect">
-      <h2>Phân tích đánh giá</h2>
-      <p className="muted">
-        Tối đa 500 đánh giá mới nhất; nhãn ước lượng không thay thế nội dung gốc.
+      <h2>⭐ Phân tích đánh giá</h2>
+      <p className="muted" style={{ marginBottom: 20 }}>
+        Dựa trên tối đa 500 đánh giá mới nhất. Nhãn được phân tích tự động bởi AI hoặc từ khóa.
       </p>
-      <div className="stat-grid">
-        {data.sentiments.map((item) => (
-          <div className="stat" key={item.sentiment}>
-            <div className="t">{sentiments[item.sentiment] || item.sentiment}</div>
-            <div className="v">{item.count}</div>
+
+      <div className="row2" style={{ alignItems: 'stretch', gap: 20 }}>
+        {/* Average Rating Card */}
+        <div className="card" style={{ padding: 24, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Điểm trung bình</div>
+          <div style={{ fontSize: 48, fontWeight: 800, color: 'var(--green-dark)', lineHeight: 1 }}>
+            {Number(data.averageRating || 0).toFixed(1)}
           </div>
-        ))}
+          <div style={{ color: '#f59e0b', fontSize: 18, margin: '8px 0' }}>★★★★★</div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {total} đánh giá
+          </div>
+        </div>
+
+        {/* Sentiment Distribution */}
+        <div className="card" style={{ padding: 24 }}>
+          <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>Phân bố cảm xúc</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {data.sentiments.map((item) => {
+              const meta = sentiments[item.sentiment];
+              const pct = total ? Math.round((item.count / total) * 100) : 0;
+              return (
+                <div key={item.sentiment}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 600, color: meta.color }}>{meta.label}</span>
+                    <span className="muted">{item.count} ({pct}%)</span>
+                  </div>
+                  <div style={{ height: 8, background: '#eef1ef', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: meta.color, borderRadius: 4 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
-      <p>
-        Điểm trung bình {data.averageRating.toFixed(1)}/5 · {data.sampleSize} đánh giá ·{' '}
-        {data.sources.ai} nhãn AI, {data.sources.local} nhãn cục bộ.
-      </p>
-      <h3>Vấn đề thường gặp</h3>
-      {data.issues.map((issue) => (
-        <p key={issue.name}>
-          {issue.name}: <b>{issue.count}</b>
-        </p>
-      ))}
+
+      {/* Data Sources & Issues */}
+      <div className="row2" style={{ marginTop: 20, gap: 20 }}>
+        <div className="card" style={{ padding: 20 }}>
+          <h3 style={{ fontSize: 14, marginBottom: 12 }}>🔍 Nguồn phân tích</h3>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <span className="badge b-blue">AI: {data.sources.ai} đánh giá</span>
+            <span className="badge b-gray">Từ khóa: {data.sources.local} đánh giá</span>
+          </div>
+        </div>
+        <div className="card" style={{ padding: 20 }}>
+          <h3 style={{ fontSize: 14, marginBottom: 12 }}>⚠️ Vấn đề thường gặp</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.issues.map((issue) => (
+              <div key={issue.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span>{issue.name}</span>
+                <b>{issue.count} lần</b>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

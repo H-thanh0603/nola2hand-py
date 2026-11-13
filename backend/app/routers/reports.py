@@ -1,5 +1,5 @@
 """Báo cáo vi phạm — port src/routes/reports.js."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import CurrentUser, require_role
 from ..errors import ApiError
-from ..models import AuditLog, Listing, Report, User
+from ..models import AuditLog, Listing, Report, Role, User, UserRole
 from ..pagination import paged_result, paginate
 from ..quota import account_limit
 from ..serialize import to_dict
@@ -23,7 +23,7 @@ REPORT_STATUSES = ("NEW", "REVIEWING", "RESOLVED", "DISMISSED")
 
 
 class ReportIn(BaseModel):
-    targetType: Literal["COMMENT", "LISTING_DESC", "MESSAGE", "AVATAR", "LISTING"]
+    targetType: Literal["COMMENT", "LISTING_DESC", "MESSAGE", "AVATAR", "LISTING", "SHOP", "USER"]
     targetId: int
     targetUserId: int | None = None
     reason: str
@@ -76,11 +76,63 @@ def create_report(
     user: CurrentUser = Depends(account_limit("CREATE_REPORT", 10, 86_400_000)),
     db: Session = Depends(get_db),
 ):
+    # 1. Validate SHOP/USER reports
+    if payload.targetType in ("SHOP", "USER"):
+        if payload.targetUserId != payload.targetId:
+            raise ApiError(400, "targetUserId phải trùng targetId với báo cáo shop/người dùng")
+        if payload.targetId == user.id:
+            raise ApiError(400, "Không thể tự báo cáo chính mình")
+        
+        target = db.execute(select(User.id, User.status).where(User.id == payload.targetId)).first()
+        if target is None:
+            raise ApiError(404, "Không tìm thấy người dùng bị báo cáo")
+        if target.status != "ACTIVE":
+            raise ApiError(400, "Không thể báo cáo tài khoản đang bị khóa")
+
+        # 2. Deduplication (chống gửi trùng trong 24h)
+        since = now() - timedelta(hours=24)
+        duplicate = db.execute(
+            select(Report.id).where(
+                Report.reporterId == user.id,
+                Report.targetType == payload.targetType,
+                Report.targetId == payload.targetId,
+                Report.createdAt >= since,
+            )
+        ).first()
+        if duplicate is not None:
+            raise ApiError(409, "Bạn đã báo cáo mục này trong 24 giờ qua")
+
+    # Create the report
     report = Report(**payload.model_dump(), reporterId=user.id, updatedAt=now())
     db.add(report)
+    db.flush()
+
+    # 3. Notify Admins (ADMIN_CONTENT)
+    admin_ids = db.execute(
+        select(User.id)
+        .join(UserRole, UserRole.userId == User.id)
+        .join(Role, Role.id == UserRole.roleId)
+        .where(Role.name == "ADMIN_CONTENT", User.status == "ACTIVE")
+    ).scalars().all()
+    
+    label = {
+        "SHOP": "shop", "USER": "người dùng", "LISTING": "tin đăng",
+        "COMMENT": "bình luận", "LISTING_DESC": "mô tả tin", 
+        "MESSAGE": "tin nhắn", "AVATAR": "ảnh đại diện",
+    }.get(payload.targetType, "nội dung")
+
+    for admin_id in admin_ids:
+        notify(
+            db,
+            admin_id,
+            "REPORT",
+            "Báo cáo vi phạm mới",
+            f"{label.capitalize()} #{payload.targetId} bị báo cáo: {payload.reason}",
+            {"reportId": report.id, "targetType": payload.targetType, "targetId": payload.targetId},
+        )
+
     db.commit()
     return {"message": "Đã gửi báo cáo, cảm ơn bạn", "report": to_dict(report)}
-
 
 @router.get("/admin/all")
 def all_reports(
@@ -217,13 +269,15 @@ def handle_report(
                     detail={"reportId": report.id, "reason": report.reason},
                 )
             )
-        elif action == "REMOVE_CONTENT" and report.targetType == "LISTING":
-            db.execute(
-                update(Listing)
-                .where(Listing.id == report.targetId)
-                .values(status="HIDDEN", updatedAt=now())
+        elif action == "REMOVE_CONTENT" and report.targetType in ("SHOP", "USER"):
+            db.add(
+                AuditLog(
+                    adminId=admin.id,
+                    action="REMOVE_CONTENT_NOOP",
+                    target=f"{report.targetType.lower()}:{report.targetId}",
+                    detail={"reportId": report.id, "note": "No content to hide for SHOP/USER"},
+                )
             )
-
     notify(
         db,
         report.reporterId,

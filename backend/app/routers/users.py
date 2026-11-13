@@ -179,6 +179,51 @@ class AddressIn(BaseModel):
         return None if v is None else v.strip()
 
 
+class AddressPatch(BaseModel):
+    label: str | None = None
+    receiver: str | None = None
+    phone: str | None = None
+    street: str | None = None
+    ward: str | None = None
+    district: str | None = None
+    city: str | None = None
+    isDefault: bool | None = None
+
+    @field_validator("label", "receiver", "street", "city")
+    @classmethod
+    def _required_text(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            raise ValueError("String must contain at least 1 character(s)")
+        return v
+
+    @field_validator("label")
+    @classmethod
+    def _label_length(cls, v: str | None) -> str | None:
+        if v is not None and len(v) > 50:
+            raise ValueError("String must contain at most 50 character(s)")
+        return v
+
+    @field_validator("receiver")
+    @classmethod
+    def _receiver_length(cls, v: str | None) -> str | None:
+        if v is not None and len(v) > 100:
+            raise ValueError("String must contain at most 100 character(s)")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, v: str | None) -> str | None:
+        return None if v is None else phone_vn(v)
+
+    @field_validator("ward", "district")
+    @classmethod
+    def _optional_text(cls, v: str | None) -> str | None:
+        return None if v is None else v.strip()
+
+
 @router.get("/me/profile")
 def my_profile(user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
     row = db.execute(select(User).where(User.id == user.id)).scalar_one()
@@ -273,6 +318,32 @@ def create_address(
         db.execute(update(Address).where(Address.userId == user.id).values(isDefault=False))
     address = Address(userId=user.id, **payload.model_dump(exclude_none=True))
     db.add(address)
+    db.commit()
+    return to_dict(address)
+
+
+@router.patch("/me/addresses/{address_id}")
+def update_address(
+    address_id: int,
+    payload: AddressPatch,
+    user: CurrentUser = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    address = db.execute(
+        select(Address).where(Address.id == address_id, Address.userId == user.id)
+    ).scalar_one_or_none()
+    if address is None:
+        raise ApiError(404, "Không tìm thấy địa chỉ")
+
+    changes = payload.model_dump(exclude_unset=True)
+    if changes.get("isDefault"):
+        db.execute(
+            update(Address)
+            .where(Address.userId == user.id, Address.id != address.id)
+            .values(isDefault=False)
+        )
+    for field, value in changes.items():
+        setattr(address, field, value)
     db.commit()
     return to_dict(address)
 
