@@ -7,6 +7,14 @@ import { fmtDate, qs } from '../utils';
 
 function linkFor(notification) {
   const data = notification.data || {};
+  // tin nhắn: mở thẳng hội thoại với người gửi để trả lời
+  if (data.senderId) {
+    return (
+      '/chat/' +
+      data.senderId +
+      (data.listingId ? '?listingId=' + data.listingId : '')
+    );
+  }
   if (data.listingId) return '/listing/' + data.listingId;
   if (data.orderId) return '/orders/' + data.orderId;
   if (data.conversationId) return '/chat';

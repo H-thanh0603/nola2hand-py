@@ -47,6 +47,10 @@ class PreviewIn(BaseModel):
     prompt: str
     listingId: int | None = None
 
+class AttachIn(BaseModel):
+    """`listingId` null = bỏ gắn khỏi tin, giữ video lại trong danh sách của seller."""
+    listingId: int | None = None
+
 def _listing_context(db: Session, listing_id: int | None, user: CurrentUser) -> dict | None:
     """Bối cảnh tin đăng để cải thiện prompt — chỉ tin của chính người bán."""
     if listing_id is None:
@@ -220,6 +224,36 @@ def get_job(
     if job is None:
         raise ApiError(404, "Không tìm thấy job video")
     _refresh_from_agent(job, db)
+    return {"job": to_dict(job)}
+
+@router.post("/{job_id}/attach")
+def attach_job(
+    job_id: int,
+    payload: AttachIn,
+    user: CurrentUser = Depends(require_role("SELLER")),
+    db: Session = Depends(get_db),
+):
+    """Gắn video đã dựng xong vào một tin của chính seller (hoặc bỏ gắn).
+
+    Lúc tạo job seller có thể chọn "Không gắn"; mỗi lượt dựng tốn ~15 phút nên phải cho
+    gắn lại thay vì bắt tạo job mới. Chỉ video DONE mới gắn được — video đang chạy chưa
+    có file để trang sản phẩm phát.
+    """
+    job = db.execute(
+        select(VideoJob).where(VideoJob.id == job_id, VideoJob.sellerId == user.id)
+    ).scalar_one_or_none()
+    if job is None:
+        raise ApiError(404, "Không tìm thấy job video")
+
+    # `_listing_context` đã chặn tin của người khác (404) — dùng lại thay vì query riêng.
+    _listing_context(db, payload.listingId, user)
+
+    if payload.listingId is not None and job.status != "DONE":
+        raise ApiError(400, "Chỉ gắn được video đã dựng xong")
+
+    job.listingId = payload.listingId
+    db.commit()
+    db.refresh(job)
     return {"job": to_dict(job)}
 
 @router.post("/{job_id}/cancel")

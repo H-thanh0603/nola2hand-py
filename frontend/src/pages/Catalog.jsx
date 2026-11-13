@@ -47,9 +47,29 @@ function readFilters(params) {
   return filters;
 }
 
+// Nấc giá cho thanh kéo: mỗi nấc rộng ~2 lần nấc trước để kéo được cả hàng
+// trăm nghìn lẫn hàng tỷ. Thanh kéo chỉ đổi giá trị, không đổi API lọc.
+const PRICE_STEPS = [
+  0, 100_000, 200_000, 500_000, 1_000_000, 2_000_000, 5_000_000,
+  10_000_000, 20_000_000, 50_000_000, 100_000_000, 200_000_000,
+  500_000_000, 1_000_000_000, 2_000_000_000, 5_000_000_000, 10_000_000_000,
+];
+const PRICE_MAX_INDEX = PRICE_STEPS.length - 1;
+
+function priceIndex(value) {
+  const amount = Number(String(value || '').replace(/[^\d]/g, ''));
+  if (!amount) return 0;
+  let best = 0;
+  PRICE_STEPS.forEach((step, index) => {
+    if (Math.abs(step - amount) < Math.abs(PRICE_STEPS[best] - amount)) best = index;
+  });
+  return best;
+}
+
 function filterValueLabel(key, value) {
   if (key === 'condition') return CONDITION_NAMES[value] || value;
   if (key === 'deliveryMethod') return DELIVERY_NAMES[value] || value;
+  if (key === 'minPrice' || key === 'maxPrice') return fmtVND(value);
   if (value === 'true') return 'Có';
   return value;
 }
@@ -112,6 +132,26 @@ export default function Catalog() {
   function patchDraft(key, value) {
     setDraft((previous) => ({ ...previous, [key]: value }));
   }
+
+  const minIndex = priceIndex(draft.minPrice);
+  const maxIndex = draft.maxPrice ? priceIndex(draft.maxPrice) : PRICE_MAX_INDEX;
+
+  function setMinIndex(value) {
+    const index = Math.max(0, Math.min(Number(value), maxIndex));
+    patchDraft('minPrice', index > 0 ? String(PRICE_STEPS[index]) : '');
+  }
+
+  function setMaxIndex(value) {
+    const index = Math.min(PRICE_MAX_INDEX, Math.max(Number(value), minIndex));
+    patchDraft('maxPrice', index < PRICE_MAX_INDEX ? String(PRICE_STEPS[index]) : '');
+  }
+
+  const priceText =
+    minIndex === 0 && maxIndex === PRICE_MAX_INDEX
+      ? 'Mọi mức giá'
+      : `${minIndex > 0 ? fmtVND(PRICE_STEPS[minIndex]) : '0 đ'} — ${
+          maxIndex < PRICE_MAX_INDEX ? fmtVND(PRICE_STEPS[maxIndex]) : 'không giới hạn'
+        }`;
 
   function applyFilters(event) {
     event.preventDefault();
@@ -524,34 +564,44 @@ export default function Catalog() {
                 </select>
               </div>
               <fieldset className="price-filter">
-                <legend>Khoảng giá (đ)</legend>
-                <label htmlFor="f-min" className="sr-only">
-                  Giá thấp nhất
-                </label>
-                <input
-                  className="input"
-                  id="f-min"
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="Từ"
-                  value={draft.minPrice || ''}
-                  onChange={(event) => patchDraft('minPrice', event.target.value)}
-                />
-                <span>—</span>
-                <label htmlFor="f-max" className="sr-only">
-                  Giá cao nhất
-                </label>
-                <input
-                  className="input"
-                  id="f-max"
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="Đến"
-                  value={draft.maxPrice || ''}
-                  onChange={(event) => patchDraft('maxPrice', event.target.value)}
-                />
+                <legend>Khoảng giá</legend>
+                <div className="price-slider">
+                  <div className="price-slider-track" />
+                  <div
+                    className="price-slider-fill"
+                    style={{
+                      left: (minIndex / PRICE_MAX_INDEX) * 100 + '%',
+                      right: (1 - maxIndex / PRICE_MAX_INDEX) * 100 + '%',
+                    }}
+                  />
+                  <input
+                    className="price-thumb"
+                    id="f-min"
+                    type="range"
+                    min="0"
+                    max={PRICE_MAX_INDEX}
+                    step="1"
+                    value={minIndex}
+                    aria-label="Giá thấp nhất"
+                    style={{ zIndex: minIndex >= maxIndex ? 3 : 1 }}
+                    onChange={(event) => setMinIndex(event.target.value)}
+                  />
+                  <input
+                    className="price-thumb"
+                    id="f-max"
+                    type="range"
+                    min="0"
+                    max={PRICE_MAX_INDEX}
+                    step="1"
+                    value={maxIndex}
+                    aria-label="Giá cao nhất"
+                    style={{ zIndex: 2 }}
+                    onChange={(event) => setMaxIndex(event.target.value)}
+                  />
+                </div>
+                <p className="price-slider-value" id="price-slider-value">
+                  {priceText}
+                </p>
               </fieldset>
               <label className="free-filter">
                 <input

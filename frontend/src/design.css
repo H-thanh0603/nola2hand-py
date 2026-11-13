@@ -123,6 +123,10 @@ body:has(#comparison-tray:not([hidden])) #toast-root{bottom:100px}
 
 /* ---------- Video quảng bá (người bán) ---------- */
 .video-studio{display:grid;gap:18px}
+.video-studio>.card{padding:22px 24px;border-radius:14px}
+.video-studio>.card>h2{font-size:17px;letter-spacing:-.3px;margin-bottom:16px}
+.video-studio .form-row{margin:0 0 16px}
+.video-studio .form-row textarea.input{min-height:104px;line-height:1.7;resize:vertical}
 .video-notice{display:flex;gap:13px;align-items:flex-start;background:var(--green-softer);border-color:#c7e2d4}
 .video-notice .ui-icon{width:26px;height:26px;color:var(--green);flex:0 0 auto;margin-top:2px}
 .video-notice strong{display:block;font-size:13px;color:var(--green-dark)}
@@ -149,6 +153,9 @@ body:has(#comparison-tray:not([hidden])) #toast-root{bottom:100px}
 .video-job-head .btn{margin-left:auto}
 .video-job video{width:100%;max-width:300px;border-radius:10px;margin-top:12px;background:#000;display:block}
 .video-job-error{margin:10px 0 0;font-size:12px;color:#b42318}
+.video-job-attach{display:grid;gap:6px;margin-top:12px;max-width:420px}
+.video-job-attach>span{font-size:12px;font-weight:600;color:var(--green-dark)}
+.video-job-attach .input{font-size:12px;min-height:40px;border-radius:6px}
 .video-job details{margin-top:10px}
 .video-job summary{cursor:pointer;font-size:12px;color:var(--green-dark);font-weight:600}
 .video-job pre{margin:8px 0 0;white-space:pre-wrap;font-size:12px;line-height:1.7;color:var(--mut);font-family:inherit}

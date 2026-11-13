@@ -147,6 +147,20 @@ export default function SellerVideo() {
     }
   };
 
+  // Gắn video đã dựng xong vào tin (hoặc bỏ gắn) — không phải tạo lại job 15 phút.
+  const attach = async (id, value) => {
+    try {
+      const res = await api(`/video-jobs/${id}/attach`, {
+        method: 'POST',
+        body: { listingId: value ? Number(value) : null },
+      });
+      setJobs((current) => current.map((job) => (job.id === id ? res.job : job)));
+      toast(value ? 'Đã gắn video vào tin đăng' : 'Đã bỏ gắn video');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
   if (loading) return <Loading />;
   if (error) return <ErrorState error={error} />;
 
@@ -163,15 +177,19 @@ export default function SellerVideo() {
       <section className="card">
         <h2>Tạo video mới</h2>
 
-        <label className="field">
-          <span>Mô tả video</span>
+        <div className="form-row">
+          <label className="lbl" htmlFor="video-prompt">
+            Mô tả video
+          </label>
           <textarea
+            className="input"
+            id="video-prompt"
             rows={4}
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             placeholder="VD: cận cảnh tai nghe trên bàn gỗ, tay nâng lên đeo thử"
           />
-        </label>
+        </div>
 
         <div className="video-images">
           <span className="field-label">
@@ -203,9 +221,16 @@ export default function SellerVideo() {
           />
         </div>
 
-        <label className="field">
-          <span>Gắn vào tin đăng (tuỳ chọn)</span>
-          <select value={listingId} onChange={(event) => setListingId(event.target.value)}>
+        <div className="form-row">
+          <label className="lbl" htmlFor="video-listing">
+            Gắn vào tin đăng (tuỳ chọn)
+          </label>
+          <select
+            className="input"
+            id="video-listing"
+            value={listingId}
+            onChange={(event) => setListingId(event.target.value)}
+          >
             <option value="">Không gắn</option>
             {listings.map((listing) => (
               <option key={listing.id} value={listing.id}>
@@ -213,10 +238,10 @@ export default function SellerVideo() {
               </option>
             ))}
           </select>
-        </label>
+        </div>
 
         <div className="video-actions">
-          <button type="button" className="btn btn-ghost" onClick={preview}>
+          <button type="button" className="btn btn-line" onClick={preview}>
             Cải thiện prompt
           </button>
           <button type="button" className="btn btn-green" onClick={submit} disabled={busy}>
@@ -244,7 +269,7 @@ export default function SellerVideo() {
                   <strong>#{job.id}</strong>
                   <span className="pill">{STATUS_LABEL[job.status] || job.status}</span>
                   {(job.status === 'QUEUED' || job.status === 'RUNNING') && (
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => cancel(job.id)}>
+                    <button type="button" className="btn btn-sm btn-line" onClick={() => cancel(job.id)}>
                       Huỷ
                     </button>
                   )}
@@ -252,6 +277,26 @@ export default function SellerVideo() {
                 {job.error && <p className="video-job-error">{job.error}</p>}
                 {job.status === 'DONE' && job.videoUrl && (
                   <video src={job.videoUrl} controls playsInline preload="metadata" />
+                )}
+                {job.status === 'DONE' && (
+                  <label className="video-job-attach">
+                    <span>Gắn vào tin đăng</span>
+                    <select
+                      className="input"
+                      value={job.listingId ? String(job.listingId) : ''}
+                      onChange={(event) => attach(job.id, event.target.value)}
+                    >
+                      <option value="">Không gắn</option>
+                      {listings.map((listing) => (
+                        <option key={listing.id} value={listing.id}>
+                          {listing.title}
+                        </option>
+                      ))}
+                      {job.listingId && !listings.some((item) => item.id === job.listingId) && (
+                        <option value={job.listingId}>Tin #{job.listingId} (không còn trong danh sách)</option>
+                      )}
+                    </select>
+                  </label>
                 )}
                 <details>
                   <summary>Prompt đã gửi</summary>
